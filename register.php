@@ -57,8 +57,8 @@ $flash = take_flash();
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#000000">
     <title>BreachLab — Sign Up</title>
-    <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="auth.css">
+    <link rel="stylesheet" href="assets/css/styles.css">
+    <link rel="stylesheet" href="assets/css/auth.css">
 </head>
 <body>
     <?php require __DIR__ . '/includes/header.php'; ?>

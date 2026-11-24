@@ -2,12 +2,10 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/app/bootstrap.php';
-require_once __DIR__ . '/app/target.php';
 require_once __DIR__ . '/includes/leaderboard.php';
 
 $user = require_operator();
 $connection = database();
-$targetLabId = configured_target_lab_id();
 $flash = take_flash();
 $message = '';
 $messageType = '';
@@ -188,8 +186,8 @@ $activePage = 'scoreboard';
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#000000">
   <title>BreachLab // Scoreboard</title>
-  <link rel="stylesheet" href="styles.css">
-  <link rel="stylesheet" href="auth.css">
+  <link rel="stylesheet" href="assets/css/styles.css">
+  <link rel="stylesheet" href="assets/css/auth.css">
 </head>
 <body>
   <?php require __DIR__ . '/includes/header.php'; ?>

@@ -1,0 +1,9 @@
+# Local environment credentials
+.env
+.env.*
+!.env.example
+
+# Local exports and runtime logs
+*.dump
+*.log
+*.sql.gz

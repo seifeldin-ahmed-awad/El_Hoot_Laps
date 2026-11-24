@@ -26,3 +26,4 @@ header("Content-Security-Policy: default-src 'self'; style-src 'self'; script-sr
 
 require_once __DIR__ . '/database.php';
 require_once __DIR__ . '/security.php';
+require_once __DIR__ . '/authentication.php';

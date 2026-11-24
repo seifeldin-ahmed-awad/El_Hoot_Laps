@@ -2,13 +2,11 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/app/bootstrap.php';
-require_once __DIR__ . '/app/target.php';
 require_once __DIR__ . '/includes/leaderboard.php';
 
 $user = current_operator();
 $leaderboard = $user === null ? [] : load_leaderboard(database());
 $userStanding = find_standing($leaderboard, $user);
-$targetLabId = configured_target_lab_id();
 $activePage = 'intro';
 ?>
 <!doctype html>
@@ -18,9 +16,9 @@ $activePage = 'intro';
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#000000">
   <title>BreachLab // Welcome</title>
-  <link rel="stylesheet" href="styles.css">
-  <link rel="stylesheet" href="auth.css">
-  <script src="welcome.js" defer></script>
+  <link rel="stylesheet" href="assets/css/styles.css">
+  <link rel="stylesheet" href="assets/css/auth.css">
+  <script src="assets/js/welcome.js" defer></script>
 </head>
 <body>
   <?php require __DIR__ . '/includes/header.php'; ?>
@@ -54,11 +52,7 @@ $activePage = 'intro';
 
       <div class="action-row">
         <a class="command-button" href="scoreboard.php">[ OPEN_SCOREBOARD ]</a>
-        <?php if ($targetLabId !== null): ?>
-          <a class="command-button command-button-outline" href="open_challenge.php?lab_id=<?= $targetLabId ?>" target="_blank" rel="noopener">[ GO_TO_TARGET ]</a>
-        <?php else: ?>
-          <button class="command-button command-button-outline" type="button" disabled title="No VoltGear challenge is configured">[ GO_TO_TARGET ]</button>
-        <?php endif; ?>
+        <a class="command-button command-button-outline" href="target/shop/index.php" target="_blank" rel="noopener">[ GO_TO_TARGET ]</a>
       </div>
       <p class="terminal-footer">STATUS: READY <span aria-hidden="true">|</span> SCOPE: VOLTGEAR_LAB_ONLY</p>
     </section>
