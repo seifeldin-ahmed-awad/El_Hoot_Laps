@@ -1,0 +1,280 @@
+<?php
+declare(strict_types=1);
+
+require_once __DIR__ . '/app/bootstrap.php';
+require_once __DIR__ . '/app/target.php';
+require_once __DIR__ . '/includes/leaderboard.php';
+
+$user = require_operator();
+$connection = database();
+$targetLabId = configured_target_lab_id();
+$flash = take_flash();
+$message = '';
+$messageType = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+  require_valid_csrf();
+  $submittedFlag = $_POST['flag'] ?? '';
+
+  if (!is_string($submittedFlag) || trim($submittedFlag) === '' || strlen(trim($submittedFlag)) > 512) {
+    $message = 'ERROR: INVALID_FLAG_FORMAT';
+    $messageType = 'is-error';
+  } else {
+    $submittedFlag = trim($submittedFlag);
+    $connection->beginTransaction();
+
+    $operatorLock = $connection->prepare('SELECT id FROM operators WHERE id = :id FOR UPDATE');
+    $operatorLock->execute(['id' => $user['id']]);
+    if ($operatorLock->fetchColumn() === false) {
+      $connection->rollBack();
+      unset($_SESSION['operator']);
+      session_regenerate_id(true);
+      set_flash('error', 'Your operator account is no longer available. Please log in again.');
+      header('Location: login.php');
+      exit;
+    }
+
+    $attemptCount = $connection->prepare(
+      'SELECT COUNT(*) FROM flag_submissions
+       WHERE operator_id = :operator_id
+         AND submitted_at >= CURRENT_TIMESTAMP - INTERVAL 10 MINUTE'
+    );
+    $attemptCount->execute(['operator_id' => $user['id']]);
+
+    if ((int) $attemptCount->fetchColumn() >= 10) {
+      $connection->rollBack();
+      $message = 'ERROR: TOO_MANY_FLAG_ATTEMPTS. TRY_AGAIN_LATER';
+      $messageType = 'is-error';
+    } else {
+      $submittedHash = hash('sha256', $submittedFlag);
+      $labQuery = $connection->prepare(
+        'SELECT id, points, challenge_route, expected_flag_hash
+         FROM labs WHERE expected_flag_hash = :flag_hash FOR UPDATE'
+      );
+      $labQuery->execute(['flag_hash' => $submittedHash]);
+      $matchingLabs = $labQuery->fetchAll();
+
+      if (count($matchingLabs) !== 1) {
+        $submission = $connection->prepare(
+          'INSERT INTO flag_submissions
+           (operator_id, lab_id, submitted_flag_hash, is_correct)
+           VALUES (:operator_id, NULL, :flag_hash, 0)'
+        );
+        $submission->execute([
+          'operator_id' => $user['id'],
+          'flag_hash' => $submittedHash,
+        ]);
+        $connection->commit();
+        $message = 'ERROR: FLAG_NOT_RECOGNIZED';
+        $messageType = 'is-error';
+      } else {
+        $challenge = $matchingLabs[0];
+        $storedHash = $challenge['expected_flag_hash'];
+        $isConfigured = is_string($storedHash) &&
+          preg_match('/\A[a-f0-9]{64}\z/i', $storedHash) === 1 &&
+          safe_challenge_url($challenge['challenge_route']) !== null &&
+          hash_equals(strtolower($storedHash), $submittedHash);
+
+        if (!$isConfigured) {
+          $submission = $connection->prepare(
+            'INSERT INTO flag_submissions
+             (operator_id, lab_id, submitted_flag_hash, is_correct)
+             VALUES (:operator_id, :lab_id, :flag_hash, 0)'
+          );
+          $submission->execute([
+            'operator_id' => $user['id'],
+            'lab_id' => $challenge['id'],
+            'flag_hash' => $submittedHash,
+          ]);
+          $connection->commit();
+          $message = 'ERROR: CHALLENGE_NOT_CONFIGURED';
+          $messageType = 'is-error';
+        } else {
+          $completionQuery = $connection->prepare(
+            'SELECT id FROM lab_completions
+             WHERE operator_id = :operator_id AND lab_id = :lab_id'
+          );
+          $completionQuery->execute([
+            'operator_id' => $user['id'],
+            'lab_id' => $challenge['id'],
+          ]);
+
+          $submission = $connection->prepare(
+            'INSERT INTO flag_submissions
+             (operator_id, lab_id, submitted_flag_hash, is_correct)
+             VALUES (:operator_id, :lab_id, :flag_hash, 1)'
+          );
+          $submission->execute([
+            'operator_id' => $user['id'],
+            'lab_id' => $challenge['id'],
+            'flag_hash' => $submittedHash,
+          ]);
+
+          if ($completionQuery->fetchColumn() !== false) {
+            $connection->commit();
+            $message = 'INFO: FLAG_ALREADY_SOLVED';
+          } else {
+            $completion = $connection->prepare(
+              'INSERT INTO lab_completions (operator_id, lab_id, points_awarded)
+               VALUES (:operator_id, :lab_id, :points)'
+            );
+            $completion->execute([
+              'operator_id' => $user['id'],
+              'lab_id' => $challenge['id'],
+              'points' => $challenge['points'],
+            ]);
+            $connection->commit();
+            $message = 'SUCCESS: FLAG_ACCEPTED (+' . (int) $challenge['points'] . ' PTS)';
+            $messageType = 'is-success';
+          }
+        }
+      }
+    }
+  }
+}
+
+$leaderboard = load_leaderboard($connection);
+$userStanding = find_standing($leaderboard, $user);
+if ($userStanding === null) {
+  unset($_SESSION['operator']);
+  session_regenerate_id(true);
+  set_flash('error', 'Your operator account is no longer available. Please log in again.');
+  header('Location: login.php');
+  exit;
+}
+$visibleLeaderboard = array_slice($leaderboard, 0, 10);
+if ($userStanding['rank'] > 10) {
+  $visibleLeaderboard[] = $userStanding;
+}
+
+$challengeQuery = $connection->prepare(
+  'SELECT l.id, l.title AS name, l.points,
+          l.challenge_route, l.expected_flag_hash, c.id AS completion_id
+   FROM labs AS l
+   LEFT JOIN lab_completions AS c
+     ON c.lab_id = l.id AND c.operator_id = :operator_id
+   ORDER BY l.id ASC'
+);
+$challengeQuery->execute(['operator_id' => $user['id']]);
+$challengeRows = $challengeQuery->fetchAll();
+$totalChallenges = count($challengeRows);
+$configuredChallengeCount = 0;
+$missingRouteCount = 0;
+$missingFlagCount = 0;
+foreach ($challengeRows as &$challenge) {
+  $hasValidRoute = safe_challenge_url($challenge['challenge_route']) !== null;
+  $hasValidFlagHash = is_string($challenge['expected_flag_hash']) &&
+    preg_match('/\A[a-f0-9]{64}\z/i', $challenge['expected_flag_hash']) === 1;
+  $challenge['is_configured'] = $hasValidRoute && $hasValidFlagHash;
+
+  if (!$hasValidRoute) {
+    $missingRouteCount++;
+  }
+  if (!$hasValidFlagHash) {
+    $missingFlagCount++;
+  }
+  if ($challenge['is_configured']) {
+    $configuredChallengeCount++;
+  }
+}
+unset($challenge);
+
+$activePage = 'scoreboard';
+?>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#000000">
+  <title>BreachLab // Scoreboard</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="auth.css">
+</head>
+<body>
+  <?php require __DIR__ . '/includes/header.php'; ?>
+
+  <main class="page-shell scoreboard-page">
+    <section class="terminal-panel scoreboard-heading" aria-labelledby="scoreboard-title">
+      <p class="prompt">root@breachlab:~# ./scoreboard --target=voltgear --live</p>
+      <h1 id="scoreboard-title" class="section-title">&gt; SCOREBOARD</h1>
+      <div class="stats-grid">
+        <div class="stat-box">
+          <span class="stat-label">[ RANK ]</span>
+          <strong class="stat-value warning-text">#<?= e($userStanding['rank']) ?></strong>
+        </div>
+        <div class="stat-box">
+          <span class="stat-label">[ FLAGS ]</span>
+          <strong class="stat-value"><?= e($userStanding['solved']) ?><span class="muted-text">/<?= e($totalChallenges) ?></span></strong>
+        </div>
+        <div class="stat-box">
+          <span class="stat-label">[ SCORE ]</span>
+          <strong class="stat-value"><?= e(number_format($userStanding['score'])) ?></strong>
+        </div>
+      </div>
+    </section>
+
+    <div class="dashboard-grid">
+      <section class="terminal-panel leaderboard-panel" aria-labelledby="leaderboard-title">
+        <div class="panel-heading">
+          <h2 id="leaderboard-title" class="section-title">&gt; TOP_OPERATORS</h2>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">RANK</th>
+                <th scope="col">HANDLE</th>
+                <th scope="col">SOLVED</th>
+                <th scope="col">SCORE</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php foreach ($visibleLeaderboard as $operator): ?>
+                <tr class="<?= $operator['id'] === $user['id'] ? 'is-you' : '' ?>">
+                  <td>#<?= e($operator['rank']) ?></td>
+                  <td><?= e($operator['username']) ?><?= $operator['id'] === $user['id'] ? ' <span class="you-tag">(YOU)</span>' : '' ?></td>
+                  <td><?= e($operator['solved']) ?>/<?= e($totalChallenges) ?></td>
+                  <td><?= e(number_format($operator['score'])) ?></td>
+                </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <div class="side-panels">
+        <section class="terminal-panel submit-panel" aria-labelledby="submit-title">
+          <h2 id="submit-title" class="section-title">&gt; SUBMIT_FLAG</h2>
+          <form method="post" class="flag-form">
+            <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+            <input id="flag" name="flag" type="text" aria-label="Enter a challenge flag" placeholder="FLAG{...}" maxlength="512" autocomplete="off" spellcheck="false" required <?= $configuredChallengeCount === 0 ? 'disabled' : '' ?>>
+            <button class="command-button" type="submit" <?= $configuredChallengeCount === 0 ? 'disabled' : '' ?>>[ SUBMIT ]</button>
+          </form>
+        </section>
+
+        <section class="terminal-panel challenges-panel" id="challenges" aria-labelledby="challenges-title">
+          <h2 id="challenges-title" class="section-title">&gt; TARGET_CHALLENGES</h2>
+          <ul class="challenge-list">
+            <?php foreach ($challengeRows as $challenge): ?>
+              <?php
+              $solved = $challenge['completion_id'] !== null;
+              $configured = $challenge['is_configured'];
+              ?>
+              <li class="challenge-item<?= $solved ? ' is-solved' : '' ?>">
+                <span><span class="challenge-state" aria-label="<?= $solved ? 'Solved' : 'Unsolved' ?>"><?= $solved ? '[x]' : '[ ]' ?></span> LAB_<?= str_pad((string) $challenge['id'], 2, '0', STR_PAD_LEFT) ?> — <?= e($challenge['name']) ?></span>
+                <span class="challenge-points"><?= e($challenge['points']) ?> PTS</span>
+                <?php if ($configured): ?>
+                  <a class="nav-link challenge-target-link" href="open_challenge.php?lab_id=<?= (int) $challenge['id'] ?>" target="_blank" rel="noopener">[OPEN_TARGET]</a>
+                <?php else: ?>
+                  <span class="nav-link challenge-target-link nav-link-unavailable" aria-disabled="true">[NOT_CONFIGURED]</span>
+                <?php endif; ?>
+              </li>
+            <?php endforeach; ?>
+          </ul>
+        </section>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
