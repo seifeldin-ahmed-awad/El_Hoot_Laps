@@ -15,7 +15,7 @@
 - `app/` contains shared bootstrap, database, security, authentication, and challenge-route validation.
 - `includes/` contains platform navigation and leaderboard presentation.
 - `assets/css/` and `assets/js/` contain platform styling and the Welcome animation.
-- `target/shop/` contains the separate Kanso Goods storefront, its assets, pages, catalog/cart logic, and informational lab registry.
+- `target/shop/` contains the separate Kanso Goods storefront, its assets, pages, catalog/cart logic, and Lab 01 training target.
 - `database/migrations/` contains additive schema updates for existing installations.
 
 The local development connection defaults to MySQL at `127.0.0.1:3306`, database `breachlab`, and the default XAMPP `root` account with an empty password. For any non-local use, create a dedicated MySQL account and set `BREACHLAB_DB_HOST`, `BREACHLAB_DB_PORT`, `BREACHLAB_DB_NAME`, `BREACHLAB_DB_USER`, and `BREACHLAB_DB_PASSWORD` in the Apache environment. Do not use the development defaults on a network-accessible server.
@@ -23,7 +23,7 @@ The application permits the development defaults only for loopback clients; non-
 
 ## Lab configuration
 
-All ten labs are seeded as **Not Configured**. A lab only accepts submissions when both `challenge_route` and `expected_flag_hash` are set in the `labs` table. The expected flag is stored as a lowercase SHA-256 digest; the raw flag is never stored in the database or in submission history. Until both fields are configured, its flag input and submit button remain disabled.
+Labs are seeded as **Not Configured**. A lab only accepts submissions when its `challenge_route` and `expected_flag_hash` are configured. SHA-256 is used by default; Lab 01 uses MD5 as declared by its migration. The raw flag is never stored in MySQL or in submission history. Until a lab is configured, its flag input and submit button remain disabled.
 
 Use an absolute `http://` or `https://` challenge URL or a site-relative path for `challenge_route`. Generate the digest locally with PHP, without putting the flag in application source:
 
@@ -39,6 +39,6 @@ Operator passwords are stored with PHP `password_hash()` and checked with `passw
 
 The Kanso Goods storefront is a separate, local target application. It has a database-backed product catalog, session-persisted bag, stock-aware demo orders, and no real payment or shipping integration. It does not collect customer details. Run `database/migrations/004_shop_catalog.sql` after the base schema to create its tables and seed the four initial products.
 
-The shop's lab registry is informational and deliberately has no vulnerable challenge handlers. Do not configure a Scoreboard challenge route or expected flag until an authorized, isolated lab implementation is ready. Opening a configured challenge records that an authenticated operator has started it.
+Lab 01 is an intentionally vulnerable PostgreSQL-backed target. Follow the setup instructions in `target/shop/modules/labs/lab01/db.php`, apply `database/migrations/005_lab01_pgsql.sql` to the separate `lab01_sqli` database, then apply MySQL migrations `006_lab_enabled_and_hash_algo.sql` and `007_lab01_register.sql` to `breachlab`. Keep the target isolated and use it only for authorized training. Opening a configured challenge records that an authenticated operator has started it.
 
 The Scoreboard has one shared flag field. The submitted flag is matched to its unique configured hash to identify the lab; duplicate hash values are prevented by a unique database index. On an existing installation created before the central submission form, import `database/migrations/002_central_flag_submission.sql` once, followed by `database/migrations/003_operator_lab_progress.sql`.

@@ -4,10 +4,32 @@ declare(strict_types=1);
 require_once __DIR__ . '/../../app/bootstrap.php';
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/modules/labs/registry.php';
+require_once __DIR__ . '/modules/labs/lab01/tracking.php';
+
+// PortSwigger-style entry point: the storefront homepage issues TrackingId
+// and evaluates it through the intentionally vulnerable Lab 01 query.
+if (!isset($_COOKIE['TrackingId'])) {
+    setcookie('TrackingId', 'ogAZZfxtOKUELbuJ', [
+        'expires' => 0,
+        'path' => '/',
+        'httponly' => false,
+        'samesite' => 'Lax',
+    ]);
+    $_COOKIE['TrackingId'] = 'ogAZZfxtOKUELbuJ';
+}
+$lab01TrackingError = lab01_process_tracking_cookie();
+
+// PortSwigger-style response: SQL errors return HTTP 404 and show only the database error.
+if ($lab01TrackingError !== null) {
+    http_response_code(404);
+    header('Content-Type: text/plain; charset=UTF-8');
+    echo "Not Found\n\n" . $lab01TrackingError;
+    exit;
+}
 
 $pdo = database();
 $page = $_GET['page'] ?? 'home';
-$allowedPages = ['home', 'products', 'category', 'product', 'cart', 'checkout', 'account', 'order', 'labs', 'info'];
+$allowedPages = ['home', 'products', 'category', 'product', 'cart', 'checkout', 'account', 'order', 'labs', 'info', 'lab01'];
 if (!is_string($page) || !in_array($page, $allowedPages, true)) {
     http_response_code(404);
     $page = 'home';
@@ -242,6 +264,7 @@ $title = match ($page) {
     'order' => 'Order Details',
     'labs' => 'Studio Notes',
     'info' => 'Information',
+    'lab01' => 'Lab 01 — Error-Based SQL Injection',
     default => 'Kanso Goods',
 };
 ?>

@@ -10,6 +10,16 @@ $flash = take_flash();
 $message = '';
 $messageType = '';
 
+// Detect whether migration 006 has been applied (adds expected_flag_hash_algorithm
+// and is_enabled).  Used in both the POST submission block and the challenge list.
+$_algoColCheck = $connection->query(
+  "SELECT COUNT(*) FROM information_schema.COLUMNS
+   WHERE TABLE_SCHEMA = DATABASE()
+     AND TABLE_NAME   = 'labs'
+     AND COLUMN_NAME  = 'expected_flag_hash_algorithm'"
+);
+$algoColExists = ($_algoColCheck !== false && (int) $_algoColCheck->fetchColumn() > 0);
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   require_valid_csrf();
   $submittedFlag = $_POST['flag'] ?? '';
@@ -44,13 +54,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $message = 'ERROR: TOO_MANY_FLAG_ATTEMPTS. TRY_AGAIN_LATER';
       $messageType = 'is-error';
     } else {
-      $submittedHash = hash('sha256', $submittedFlag);
+      $submittedHashSha256 = hash('sha256', $submittedFlag);
+      $submittedHashMd5    = md5($submittedFlag);
+
+      // Look up all labs whose stored hash matches either algorithm's digest
+      // of the submitted flag.  We select both columns (and the algorithm) so
+      // we can verify with the correct function below.
+      // The expected_flag_hash_algorithm column was added in migration 006.
+      // For installations that pre-date that migration the column may not
+      // exist; fall back to sha256-only matching in that case.
+
+      $algoSelect = $algoColExists
+        ? ", expected_flag_hash_algorithm"
+        : ", 'sha256' AS expected_flag_hash_algorithm";
+
+      // Try sha256 match first, then md5.
       $labQuery = $connection->prepare(
-        'SELECT id, points, challenge_route, expected_flag_hash
-         FROM labs WHERE expected_flag_hash = :flag_hash FOR UPDATE'
+        "SELECT id, points, challenge_route, expected_flag_hash{$algoSelect}
+         FROM labs
+         WHERE expected_flag_hash IN (:hash_sha256, :hash_md5)
+         FOR UPDATE"
       );
-      $labQuery->execute(['flag_hash' => $submittedHash]);
+      $labQuery->execute([
+        'hash_sha256' => $submittedHashSha256,
+        'hash_md5'    => $submittedHashMd5,
+      ]);
       $matchingLabs = $labQuery->fetchAll();
+
+      // Keep only the lab whose hash matches the algorithm it is configured for.
+      $matchingLabs = array_filter(
+        $matchingLabs,
+        static function (array $lab) use ($submittedHashSha256, $submittedHashMd5): bool {
+          $algo  = strtolower((string) ($lab['expected_flag_hash_algorithm'] ?? 'sha256'));
+          $expected = strtolower((string) $lab['expected_flag_hash']);
+          return match ($algo) {
+            'md5'    => hash_equals($expected, $submittedHashMd5),
+            default  => hash_equals($expected, $submittedHashSha256),
+          };
+        }
+      );
+      $matchingLabs = array_values($matchingLabs);
+
+      // Store the hash that was actually used for the matched algorithm,
+      // or fall back to the sha256 digest for the submission log.
+      $logHash = $submittedHashSha256;
 
       if (count($matchingLabs) !== 1) {
         $submission = $connection->prepare(
@@ -60,18 +107,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         );
         $submission->execute([
           'operator_id' => $user['id'],
-          'flag_hash' => $submittedHash,
+          'flag_hash' => $logHash,
         ]);
         $connection->commit();
         $message = 'ERROR: FLAG_NOT_RECOGNIZED';
         $messageType = 'is-error';
       } else {
-        $challenge = $matchingLabs[0];
+        $challenge  = $matchingLabs[0];
         $storedHash = $challenge['expected_flag_hash'];
+        $algo       = strtolower((string) ($challenge['expected_flag_hash_algorithm'] ?? 'sha256'));
+
+        // Per-algorithm digest-length validation.
+        $expectedHashLength = match ($algo) {
+          'md5'   => 32,
+          default => 64,
+        };
+        $computedHash = match ($algo) {
+          'md5'   => $submittedHashMd5,
+          default => $submittedHashSha256,
+        };
+
         $isConfigured = is_string($storedHash) &&
-          preg_match('/\A[a-f0-9]{64}\z/i', $storedHash) === 1 &&
+          strlen($storedHash) === $expectedHashLength &&
+          preg_match('/\A[a-f0-9]+\z/i', $storedHash) === 1 &&
           safe_challenge_url($challenge['challenge_route']) !== null &&
-          hash_equals(strtolower($storedHash), $submittedHash);
+          hash_equals(strtolower($storedHash), $computedHash);
 
         if (!$isConfigured) {
           $submission = $connection->prepare(
@@ -82,7 +142,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           $submission->execute([
             'operator_id' => $user['id'],
             'lab_id' => $challenge['id'],
-            'flag_hash' => $submittedHash,
+            'flag_hash' => $logHash,
           ]);
           $connection->commit();
           $message = 'ERROR: CHALLENGE_NOT_CONFIGURED';
@@ -105,7 +165,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           $submission->execute([
             'operator_id' => $user['id'],
             'lab_id' => $challenge['id'],
-            'flag_hash' => $submittedHash,
+            'flag_hash' => $logHash,
           ]);
 
           if ($completionQuery->fetchColumn() !== false) {
@@ -145,13 +205,19 @@ if ($userStanding['rank'] > 10) {
   $visibleLeaderboard[] = $userStanding;
 }
 
+$_algoSelect2 = $algoColExists
+  ? 'l.expected_flag_hash_algorithm,'
+  : "'sha256' AS expected_flag_hash_algorithm,";
+
 $challengeQuery = $connection->prepare(
-  'SELECT l.id, l.title AS name, l.points,
-          l.challenge_route, l.expected_flag_hash, c.id AS completion_id
+  "SELECT l.id, l.title AS name, l.points,
+          l.challenge_route, l.expected_flag_hash,
+          {$_algoSelect2}
+          c.id AS completion_id
    FROM labs AS l
    LEFT JOIN lab_completions AS c
      ON c.lab_id = l.id AND c.operator_id = :operator_id
-   ORDER BY l.id ASC'
+   ORDER BY l.id ASC"
 );
 $challengeQuery->execute(['operator_id' => $user['id']]);
 $challengeRows = $challengeQuery->fetchAll();
@@ -161,8 +227,11 @@ $missingRouteCount = 0;
 $missingFlagCount = 0;
 foreach ($challengeRows as &$challenge) {
   $hasValidRoute = safe_challenge_url($challenge['challenge_route']) !== null;
+  $algo   = strtolower((string) ($challenge['expected_flag_hash_algorithm'] ?? 'sha256'));
+  $hashLen = match ($algo) { 'md5' => 32, default => 64 };
   $hasValidFlagHash = is_string($challenge['expected_flag_hash']) &&
-    preg_match('/\A[a-f0-9]{64}\z/i', $challenge['expected_flag_hash']) === 1;
+    strlen($challenge['expected_flag_hash']) === $hashLen &&
+    preg_match('/\A[a-f0-9]+\z/i', $challenge['expected_flag_hash']) === 1;
   $challenge['is_configured'] = $hasValidRoute && $hasValidFlagHash;
 
   if (!$hasValidRoute) {
@@ -244,6 +313,9 @@ $activePage = 'scoreboard';
       <div class="side-panels">
         <section class="terminal-panel submit-panel" aria-labelledby="submit-title">
           <h2 id="submit-title" class="section-title">&gt; SUBMIT_FLAG</h2>
+          <?php if ($message !== ''): ?>
+            <p class="submit-message <?= escape_html($messageType) ?>" role="<?= $messageType === 'is-error' ? 'alert' : 'status' ?>"><?= escape_html($message) ?></p>
+          <?php endif; ?>
           <form method="post" class="flag-form">
             <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
             <input id="flag" name="flag" type="text" aria-label="Enter a challenge flag" placeholder="FLAG{...}" maxlength="512" autocomplete="off" spellcheck="false" required <?= $configuredChallengeCount === 0 ? 'disabled' : '' ?>>
