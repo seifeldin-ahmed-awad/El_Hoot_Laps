@@ -1,4 +1,25 @@
 <section class="listing-page">
+<?php if ($search !== ''): ?>
+  <!-- Lab 06: intentionally vulnerable reflected input inside a JavaScript string. -->
+  <script>
+    const reflectedSearch = '<?= addslashes($search) ?>';
+  </script>
+  <script>
+    // Show the completion flag for the exact reflected script-breakout proof.
+    // Run immediately: this script is rendered after the listing container exists,
+    // so waiting for DOMContentLoaded can miss the event in some navigation flows.
+    const lab06Query = new URLSearchParams(window.location.search).get('q') || '';
+    const lab06Proof = '</scr' + 'ipt><scr' + 'ipt>alert(1)</scr' + 'ipt>';
+    if (lab06Query.includes(lab06Proof)) {
+      const flag = document.createElement('p');
+      flag.className = 'shop-flash is-success';
+      flag.setAttribute('role', 'status');
+      flag.textContent = 'Lab 06 flag: flag{FqtI2xKqln3v}';
+      document.querySelector('.listing-page')?.prepend(flag);
+      window.setTimeout(() => { window.location.replace('index.php?page=products'); }, 30000);
+    }
+  </script>
+<?php endif; ?>
   <p class="eyebrow">THE KANSO COLLECTION</p>
   <div class="section-heading listing-heading">
     <div><h1>Shop all</h1><?php if ($search !== ''): ?><p class="listing-context">Results for “<?= shop_e($search) ?>”</p><?php endif; ?></div>

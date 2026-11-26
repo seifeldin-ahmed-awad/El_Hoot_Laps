@@ -9,7 +9,7 @@
 <section class="lab-notice">
   <p class="eyebrow">BREACHLAB TRAINING REGISTRY</p>
   <h2>Active training modules.</h2>
-  <p>These are intentionally vulnerable challenge modules running on this shop. Each challenge is isolated. Use a proxy tool or browser DevTools to interact with the injection points.</p>
+  <p>These challenges are integrated into this same storefront. Open the relevant shop pages and use a proxy tool or browser DevTools to interact with the injection points.</p>
   <div class="lab-list">
     <?php foreach ($labs as $lab): ?>
       <?php
@@ -27,7 +27,8 @@
         <small><?= shop_e($lab['difficulty']) ?> · <?= shop_e($lab['points']) ?> PTS<?= $enabled ? ' · <span class="lab-status-on">ACTIVE</span>' : ' · NOT CONFIGURED' ?></small>
         <?php if ($enabled): ?>
           <div class="lab-actions">
-            <a class="text-link" href="<?= shop_e(shop_url('products', ['lab' => $labId])) ?>">Open in main shop <span aria-hidden="true">→</span></a>
+            <a class="text-link" href="<?= shop_e(shop_url('lab0' . $labId)) ?>">Challenge info <span aria-hidden="true">→</span></a>
+            <a class="text-link" href="modules/labs/lab0<?= $labId ?>/login.php" target="_blank" rel="noopener">Open target <span aria-hidden="true">↗</span></a>
           </div>
         <?php endif; ?>
       </article>

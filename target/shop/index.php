@@ -59,6 +59,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_valid_csrf();
     $action = $_POST['action'] ?? '';
 
+    if ($action === 'submit-review') {
+        $reviewProductId = filter_var($_POST['product_id'] ?? null, FILTER_VALIDATE_INT);
+        $reviewName = trim((string) ($_POST['review_name'] ?? ''));
+        $reviewBody = trim((string) ($_POST['review_body'] ?? ''));
+        $reviewWebsite = trim((string) ($_POST['review_website'] ?? ''));
+
+        if ($reviewProductId === false || $reviewProductId === null || $reviewProductId < 1 ||
+            $reviewName === '' || $reviewBody === '' || strlen($reviewName) > 100 ||
+            strlen($reviewBody) > 2000 || strlen($reviewWebsite) > 500) {
+            shop_flash('error', 'Please provide a name and review within the allowed length.');
+        } else {
+            $exists = $pdo->prepare('SELECT id FROM shop_products WHERE id = :id');
+            $exists->execute(['id' => $reviewProductId]);
+            if ($exists->fetchColumn() === false) {
+                shop_flash('error', 'The product for this review was not found.');
+            } else {
+                $insertReview = $pdo->prepare(
+                    'INSERT INTO shop_product_reviews (product_id, reviewer_name, review_body, website)
+                     VALUES (:product_id, :reviewer_name, :review_body, :website)'
+                );
+                $insertReview->execute([
+                    'product_id' => $reviewProductId,
+                    'reviewer_name' => $reviewName,
+                    'review_body' => $reviewBody,
+                    'website' => $reviewWebsite,
+                ]);
+                shop_flash('success', 'Your review has been posted.');
+            }
+        }
+        header('Location: ' . shop_url('product', ['slug' => (string) ($_POST['product_slug'] ?? '')]));
+        exit;
+    }
+
     if ($action === 'add') {
         $productId = filter_var($_POST['product_id'] ?? null, FILTER_VALIDATE_INT);
         $quantity = filter_var($_POST['quantity'] ?? 1, FILTER_VALIDATE_INT);
@@ -225,30 +258,12 @@ $categorySlug = is_string($categorySlug) ? $categorySlug : '';
 $productSlug = $_GET['slug'] ?? '';
 $productSlug = is_string($productSlug) ? $productSlug : '';
 $product = $productSlug === '' ? null : shop_product($pdo, $productSlug);
-try {
-    $products = shop_products(
-        $pdo,
-        $search,
-        in_array($page, ['category', 'products'], true) && $categorySlug !== '' ? $categorySlug : null,
-        $sort,
-        true // Intentionally vulnerable search for the local SQLi training storefront.
-    );
-    if ($activeLab === 3 && $search !== '') {
-        $unionRows = array_values(array_filter($products, static fn(array $row): bool => ($row['category_slug'] ?? '') === 'lab03'));
-        if ($unionRows !== []) {
-            $labResult['message'] = implode("\n", array_map(
-                static fn(array $row): string => implode(' | ', [
-                    (string) $row['name'], (string) $row['product_code'], (string) $row['description'],
-                ]),
-                $unionRows
-            ));
-        }
-    }
-} catch (Throwable $e) {
-    $products = [];
-    $labResult['error'] = $e->getMessage();
-    http_response_code(404);
-}
+$products = shop_products(
+    $pdo,
+    $search,
+    in_array($page, ['category', 'products'], true) && $categorySlug !== '' ? $categorySlug : null,
+    $sort
+);
 $selectedCategory = null;
 foreach ($categories as $category) {
     if ($category['slug'] === $categorySlug) {
@@ -314,6 +329,7 @@ $title = match ($page) {
   <meta name="theme-color" content="#FAF8F5">
   <title><?= $page === 'home' ? 'Kanso Goods' : shop_e($title . ' — Kanso Goods') ?></title>
   <link rel="stylesheet" href="assets/css/shop.css">
+  <script src="assets/js/lab05.js"></script>\n  <script src="assets/js/lab07.js" defer></script>
   <script src="assets/js/shop.js" defer></script>
 </head>
 <body class="shop-body">

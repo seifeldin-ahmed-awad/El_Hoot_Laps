@@ -22,7 +22,9 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: strict-origin-when-cross-origin');
 header('X-Frame-Options: DENY');
-header("Content-Security-Policy: default-src 'self'; style-src 'self'; script-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'");
+$isShopTarget = str_contains((string) ($_SERVER['SCRIPT_NAME'] ?? ''), '/target/shop/index.php');
+$scriptPolicy = $isShopTarget ? "script-src 'self' 'unsafe-inline'" : "script-src 'self'";
+header("Content-Security-Policy: default-src 'self'; style-src 'self'; {$scriptPolicy}; form-action 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'");
 
 require_once __DIR__ . '/database.php';
 require_once __DIR__ . '/security.php';
