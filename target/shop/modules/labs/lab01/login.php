@@ -5,7 +5,7 @@ declare(strict_types=1);
  * Lab 01 – Visible Error-Based SQL Injection
  * Shop-side login page used in Step 9 of the solution sequence.
  *
- * The learner extracts the administrator password via error-based
+ * The learner extracts the sales_manager password via error-based
  * injection, then authenticates here.  On success the lab flag is
  * displayed.
  *
@@ -61,8 +61,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($row === false || $row['password'] !== $password) {
             $loginError = 'Invalid username or password.';
-        } elseif ($username !== 'administrator') {
-            $loginError = 'Only the administrator account completes this challenge.';
+        } elseif ($username !== 'sales_manager') {
+            $loginError = 'Only the sales_manager account completes this challenge.';
         } else {
             $loginSuccess = true;
 
@@ -115,7 +115,7 @@ $search       = '';
       <?php if ($loginSuccess && $flagValue !== null): ?>
         <div class="lab01-complete">
           <p class="eyebrow" style="color:var(--success);">✓ CHALLENGE SOLVED</p>
-          <p>You have successfully authenticated as <strong>administrator</strong>.</p>
+          <p>You have successfully authenticated as <strong>sales_manager</strong>.</p>
           <p>Copy the flag below and submit it through the <a href="/BreachLab/scoreboard.php" class="text-link">BreachLab Scoreboard</a> to earn your points.</p>
           <div class="lab01-flag-box">
             <span class="lab01-flag-label">YOUR FLAG</span>
@@ -124,7 +124,7 @@ $search       = '';
           <p class="lab01-flag-note">This flag is unique to this challenge instance.</p>
         </div>
       <?php elseif ($loginSuccess): ?>
-        <p class="shop-flash is-success" role="status">Authentication successful. Flag unavailable — contact your platform administrator.</p>
+        <p class="shop-flash is-success" role="status">Authentication successful. Flag unavailable — contact your platform sales_manager.</p>
       <?php else: ?>
         <form method="post" class="lab01-login-form">
           <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">

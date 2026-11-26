@@ -41,7 +41,7 @@
 --   LAB01_PG_USER      (default: lab01_user)
 --   LAB01_PG_PASSWORD  (default: lab01localdev  — change on any shared server)
 --
--- IMPORTANT: administrator is a dummy local training account only.
+-- IMPORTANT: sales_manager is a dummy local training account only.
 -- Do not reuse f{EL-HOOT71026} for real accounts.
 -- =============================================================================
 
@@ -53,7 +53,7 @@
 --
 -- Row order matters for the LIMIT 1 extraction payload:
 --   ' AND 1=CAST((SELECT username FROM users LIMIT 1) AS int)--
--- The first row (lowest id) must be administrator so that payload reveals it.
+-- The first row (lowest id) must be sales_manager so that payload reveals it.
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS users (
     id       SERIAL PRIMARY KEY,
@@ -76,12 +76,12 @@ BEGIN
 END $$;
 
 -- Seed training accounts.
--- administrator MUST be the first row (lowest id) so that
+-- sales_manager MUST be the first row (lowest id) so that
 --   ' AND 1=CAST((SELECT username FROM users LIMIT 1) AS int)--
--- reveals 'administrator' in the type-conversion error message.
+-- reveals 'sales_manager' in the type-conversion error message.
 --
 -- Strategy: if the table is empty (fresh install), insert in the correct
--- order.  If rows already exist but administrator is not first, truncate
+-- order.  If rows already exist but sales_manager is not first, truncate
 -- and re-seed — all rows are dummy training accounts.
 DO $$
 DECLARE
@@ -93,27 +93,27 @@ BEGIN
     IF v_count = 0 THEN
         -- Fresh install: insert in the required order.
         INSERT INTO users (username, password, role) VALUES
-            ('administrator', 'f{EL-HOOT71026}', 'administrator'),
+            ('sales_manager', 'f{EL-HOOT71026}', 'sales_manager'),
             ('wiener',        'peter',            'user'),
             ('carlos',        'montoya',          'user');
 
     ELSE
-        -- Existing install: check whether administrator is first.
+        -- Existing install: check whether sales_manager is first.
         SELECT username INTO v_first_username
         FROM   users ORDER BY id LIMIT 1;
 
-        IF v_first_username <> 'administrator' THEN
+        IF v_first_username <> 'sales_manager' THEN
             -- Re-seed: truncate and reinsert in the correct order.
             -- These are all dummy local training accounts; no real data is lost.
             TRUNCATE TABLE users RESTART IDENTITY;
             INSERT INTO users (username, password, role) VALUES
-                ('administrator', 'f{EL-HOOT71026}', 'administrator'),
+                ('sales_manager', 'f{EL-HOOT71026}', 'sales_manager'),
                 ('wiener',        'peter',            'user'),
                 ('carlos',        'montoya',          'user');
         ELSE
-            -- administrator is already first; ensure password and role are current.
-            UPDATE users SET password = 'f{EL-HOOT71026}', role = 'administrator'
-            WHERE  username = 'administrator';
+            -- sales_manager is already first; ensure password and role are current.
+            UPDATE users SET password = 'f{EL-HOOT71026}', role = 'sales_manager'
+            WHERE  username = 'sales_manager';
 
             -- Add wiener / carlos if they are missing.
             INSERT INTO users (username, password, role)
@@ -147,7 +147,7 @@ WHERE NOT EXISTS (
 -- ---------------------------------------------------------------------------
 -- Table: lab01_flag
 -- Stores the plaintext flag displayed to the learner after they successfully
--- authenticate as administrator.  The corresponding MD5 digest is stored in
+-- authenticate as sales_manager.  The corresponding MD5 digest is stored in
 -- the MySQL breachlab.labs table (expected_flag_hash).
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS lab01_flag (

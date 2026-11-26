@@ -4,20 +4,40 @@ declare(strict_types=1);
 require_once __DIR__ . '/../../app/bootstrap.php';
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/modules/labs/registry.php';
-require_once __DIR__ . '/modules/labs/lab01/tracking.php';
-
-// PortSwigger-style entry point: the storefront homepage issues TrackingId
-// and evaluates it through the intentionally vulnerable Lab 01 query.
-if (!isset($_COOKIE['TrackingId'])) {
-    setcookie('TrackingId', 'ogAZZfxtOKUELbuJ', [
-        'expires' => 0,
-        'path' => '/',
-        'httponly' => false,
-        'samesite' => 'Lax',
-    ]);
-    $_COOKIE['TrackingId'] = 'ogAZZfxtOKUELbuJ';
+// Keep every challenge on the storefront endpoint. Lab 03 is selected explicitly
+// by its link and uses the search bar; TrackingId auto-detection is only for Labs 02/04.
+$trackingProbe = (string) ($_COOKIE['TrackingId'] ?? '');
+$autoDetectedLab = 1;
+// Lab 01's error-based payloads also contain AND/OR. Detect its distinctive
+// CAST((SELECT ... FROM users ...) signature before the generic Lab 02 rule.
+if (preg_match('/\bCAST\s*\(\s*\(\s*SELECT\b[\s\S]*?\bFROM\s+users\b/i', $trackingProbe) === 1) {
+    $autoDetectedLab = 1; // visible error-based SQLi (sales_manager target)
+} elseif (preg_match('/pg\s*_\s*sleep\s*\(/i', $trackingProbe) === 1) {
+    $autoDetectedLab = 4; // time-based blind SQLi
+} elseif (preg_match('/\b(?:AND|OR)\b/i', $trackingProbe) === 1) {
+    $autoDetectedLab = 2; // conditional-response blind SQLi
 }
-$lab01TrackingError = lab01_process_tracking_cookie();
+$requestedLab = filter_var($_GET['lab'] ?? null, FILTER_VALIDATE_INT);
+$activeLab = is_int($requestedLab) && in_array($requestedLab, [1, 2, 3, 4], true)
+    ? $requestedLab
+    : $autoDetectedLab;
+if (!isset($_COOKIE['TrackingId']) && $activeLab !== 3) {
+    $seedCookie = $activeLab === 1 ? 'ogAZZfxtOKUELbuJ' : ($activeLab === 4 ? 'x' : 'xyz');
+    setcookie('TrackingId', $seedCookie, [
+        'expires' => 0, 'path' => '/', 'httponly' => false, 'samesite' => 'Lax',
+    ]);
+    $_COOKIE['TrackingId'] = $seedCookie;
+}
+$labResult = null;
+if ($activeLab >= 2 && $activeLab !== 3) {
+    require_once __DIR__ . '/modules/labs/shared.php';
+    $labResult = lab_shop_process($activeLab);
+}
+if ($activeLab === 3) {
+    $labResult = ['lab_id' => 3, 'message' => '', 'error' => '', 'duration' => 0.0, 'rows' => []];
+}
+require_once __DIR__ . '/modules/labs/lab01/tracking.php';
+$lab01TrackingError = $activeLab === 1 ? lab01_process_tracking_cookie() : null;
 
 // PortSwigger-style response: SQL errors return HTTP 404 and show only the database error.
 if ($lab01TrackingError !== null) {
@@ -197,7 +217,7 @@ $cartItems = shop_cart_items($pdo);
 $cartSubtotal = shop_cart_subtotal($cartItems);
 $flash = shop_take_flash();
 $search = $_GET['q'] ?? '';
-$search = is_string($search) ? trim(substr($search, 0, 100)) : '';
+$search = is_string($search) ? trim(substr($search, 0, 1000)) : '';
 $sort = $_GET['sort'] ?? 'featured';
 $sort = is_string($sort) ? $sort : 'featured';
 $categorySlug = $_GET['category'] ?? '';
@@ -205,12 +225,30 @@ $categorySlug = is_string($categorySlug) ? $categorySlug : '';
 $productSlug = $_GET['slug'] ?? '';
 $productSlug = is_string($productSlug) ? $productSlug : '';
 $product = $productSlug === '' ? null : shop_product($pdo, $productSlug);
-$products = shop_products(
-    $pdo,
-    $search,
-    in_array($page, ['category', 'products'], true) && $categorySlug !== '' ? $categorySlug : null,
-    $sort
-);
+try {
+    $products = shop_products(
+        $pdo,
+        $search,
+        in_array($page, ['category', 'products'], true) && $categorySlug !== '' ? $categorySlug : null,
+        $sort,
+        true // Intentionally vulnerable search for the local SQLi training storefront.
+    );
+    if ($activeLab === 3 && $search !== '') {
+        $unionRows = array_values(array_filter($products, static fn(array $row): bool => ($row['category_slug'] ?? '') === 'lab03'));
+        if ($unionRows !== []) {
+            $labResult['message'] = implode("\n", array_map(
+                static fn(array $row): string => implode(' | ', [
+                    (string) $row['name'], (string) $row['product_code'], (string) $row['description'],
+                ]),
+                $unionRows
+            ));
+        }
+    }
+} catch (Throwable $e) {
+    $products = [];
+    $labResult['error'] = $e->getMessage();
+    http_response_code(404);
+}
 $selectedCategory = null;
 foreach ($categories as $category) {
     if ($category['slug'] === $categorySlug) {
@@ -283,6 +321,13 @@ $title = match ($page) {
   <main class="shop-main">
     <?php if ($flash !== null): ?>
       <p class="shop-flash <?= $flash['type'] === 'error' ? 'is-error' : 'is-success' ?>" role="status"><?= shop_e($flash['message']) ?></p>
+    <?php endif; ?>
+    <?php if ($labResult !== null && ($labResult['message'] !== '' || $labResult['error'] !== '' || $activeLab === 4)): ?>
+      <section class="shop-flash <?= $labResult['error'] !== '' ? 'is-error' : 'is-success' ?>" id="lab-result" role="status" aria-live="polite">
+        <?php if ($labResult['message'] !== ''): ?><pre><?= shop_e($labResult['message']) ?></pre><?php endif; ?>
+        <?php if ($labResult['error'] !== ''): ?><pre><?= shop_e($labResult['error']) ?></pre><?php endif; ?>
+        <?php if ($activeLab === 4): ?><small>Request time: <?= number_format((float) $labResult['duration'], 2) ?> seconds</small><?php endif; ?>
+      </section>
     <?php endif; ?>
     <?php
     $pageFile = __DIR__ . '/pages/' . $page . '.php';

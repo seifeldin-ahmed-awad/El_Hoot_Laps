@@ -97,3 +97,16 @@ ON DUPLICATE KEY UPDATE
     description = VALUES(description),
     difficulty = VALUES(difficulty),
     points = VALUES(points);
+
+
+-- Lab 03 UNION SQL injection challenge data (same database as the storefront).
+-- Only the target username and password hash are stored.
+CREATE TABLE IF NOT EXISTS users (
+    username VARCHAR(80) NOT NULL,
+    password CHAR(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    PRIMARY KEY (username)
+) ENGINE=InnoDB;
+
+INSERT INTO users (username, password)
+VALUES ('mariam', '35539c649159dbdb1de98dd905088ae9')
+ON DUPLICATE KEY UPDATE password = VALUES(password);

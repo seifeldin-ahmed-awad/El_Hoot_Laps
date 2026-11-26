@@ -35,7 +35,7 @@ function shop_categories(PDO $pdo): array
     )->fetchAll();
 }
 
-function shop_products(PDO $pdo, string $search = '', ?string $category = null, string $sort = 'featured'): array
+function shop_products(PDO $pdo, string $search = '', ?string $category = null, string $sort = 'featured', bool $unionLab = false): array
 {
     $orderBy = [
         'featured' => 'p.is_featured DESC, p.id ASC',
@@ -43,6 +43,23 @@ function shop_products(PDO $pdo, string $search = '', ?string $category = null, 
         'price-high' => 'p.price DESC, p.id ASC',
         'name' => 'p.name ASC, p.id ASC',
     ][$sort] ?? 'p.is_featured DESC, p.id ASC';
+
+    // Lab 03 deliberately makes the MAIN storefront search query vulnerable.
+    // This branch runs against the same MySQL shop database and returns the
+    // same product-shaped columns so UNION rows render in the normal product grid.
+    if ($unionLab) {
+        if ($search === '') {
+            return [];
+        }
+        $sql = "SELECT p.id, p.slug, p.name, p.product_code, p.description, p.price,
+                       p.stock, p.image_class, p.is_featured, c.name AS category_name,
+                       c.slug AS category_slug
+                FROM shop_products AS p
+                JOIN shop_categories AS c ON c.id = p.category_id
+                WHERE p.name LIKE '%" . $search . "%'";
+        $statement = $pdo->query($sql);
+        return $statement->fetchAll();
+    }
 
     $where = ['1 = 1'];
     $params = [];

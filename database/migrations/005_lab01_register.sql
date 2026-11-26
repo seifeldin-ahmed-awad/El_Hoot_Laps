@@ -14,7 +14,7 @@ UPDATE labs
 SET
     title               = 'Visible Error-Based SQL Injection',
     category            = 'SQL Injection',
-    description         = 'Exploit verbose database errors to extract the administrator password from a PostgreSQL-backed shop.',
+    description         = 'Exploit verbose database errors to extract the sales_manager password from a PostgreSQL-backed shop.',
     difficulty          = 'Easy',
     points              = 100,
     challenge_route     = '/BreachLab/target/shop/modules/labs/lab01/login.php',

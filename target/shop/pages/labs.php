@@ -14,6 +14,9 @@
     <?php foreach ($labs as $lab): ?>
       <?php
       $labId   = (int) $lab['id'];
+      if ($labId === 3) {
+          continue;
+      }
       $padded  = str_pad((string) $labId, 2, '0', STR_PAD_LEFT);
       $enabled = $lab['enabled'];
       ?>
@@ -24,27 +27,10 @@
         <small><?= shop_e($lab['difficulty']) ?> · <?= shop_e($lab['points']) ?> PTS<?= $enabled ? ' · <span class="lab-status-on">ACTIVE</span>' : ' · NOT CONFIGURED' ?></small>
         <?php if ($enabled): ?>
           <div class="lab-actions">
-            <a class="text-link" href="<?= shop_e(shop_url('lab0' . $labId)) ?>">Challenge info <span aria-hidden="true">→</span></a>
-            <a class="text-link" href="modules/labs/lab0<?= $labId ?>/login.php" target="_blank" rel="noopener">Open target <span aria-hidden="true">↗</span></a>
+            <a class="text-link" href="<?= shop_e(shop_url('products', ['lab' => $labId])) ?>">Open in main shop <span aria-hidden="true">→</span></a>
           </div>
         <?php endif; ?>
       </article>
     <?php endforeach; ?>
   </div>
 </section>
-
-<style>
-.lab-list article.lab-enabled {
-  border-color: #b8c8bc;
-  background: #f5faf7;
-}
-.lab-status-on {
-  color: var(--success);
-  font-family: "Red Hat Mono", Consolas, monospace;
-}
-.lab-actions {
-  display: flex;
-  gap: 18px;
-  margin-top: 10px;
-}
-</style>

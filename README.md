@@ -42,3 +42,29 @@ The Kanso Goods storefront is a separate, local target application. It has a dat
 Lab 01 is an intentionally vulnerable PostgreSQL-backed target. Follow the setup instructions in `target/shop/modules/labs/lab01/db.php`, apply `database/migrations/005_lab01_pgsql.sql` to the separate `lab01_sqli` database, then apply MySQL migrations `006_lab_enabled_and_hash_algo.sql` and `007_lab01_register.sql` to `breachlab`. Keep the target isolated and use it only for authorized training. Opening a configured challenge records that an authenticated operator has started it.
 
 The Scoreboard has one shared flag field. The submitted flag is matched to its unique configured hash to identify the lab; duplicate hash values are prevented by a unique database index. On an existing installation created before the central submission form, import `database/migrations/002_central_flag_submission.sql` once, followed by `database/migrations/003_operator_lab_progress.sql`.
+
+## SQL injection lab database setup
+
+Lab 02 and Lab 04 use isolated PostgreSQL databases, separate from the platform MySQL database:
+
+- Lab 02: `lab02_sqli`, role `lab02_user`, environment variables `LAB02_PG_HOST`, `LAB02_PG_PORT`, `LAB02_PG_DATABASE`, `LAB02_PG_USER`, `LAB02_PG_PASSWORD`.
+- Lab 04: `lab04_sqli`, role `lab04_user`, environment variables `LAB04_PG_HOST`, `LAB04_PG_PORT`, `LAB04_PG_DATABASE`, `LAB04_PG_USER`, `LAB04_PG_PASSWORD`.
+
+Create each database and restricted login role as a PostgreSQL administrator, grant the role CONNECT on its database, then run the matching Lab 02 or Lab 04 migration inside that database. The local default passwords in `target/shop/modules/labs/shared.php` are for local training only; change them before exposing the server.
+
+Lab 03 runs against the main `breachlab` MySQL/MariaDB database through the ordinary Kanso Goods global search box. On an existing installation, apply `database/migrations/010_lab03_account_hash_mysql.sql` to add or refresh the target account; the migration leaves existing tables untouched. On a fresh installation, import the updated `database/schema.sql`. The target is stored in the simple `users` table, which has exactly two columns: `username` (`mariam`) and `password` (the MD5 digest of the challenge flag). The plaintext flag is not stored in the target table. Lab 02 and Lab 04 continue to use their separate PostgreSQL databases. Flags are submitted through the existing scoreboard.
+
+Example one-time PostgreSQL provisioning for Lab 02 or Lab 04 (repeat with the matching database, role, and migration):
+
+```sql
+CREATE DATABASE lab02_sqli;
+CREATE ROLE lab02_user LOGIN PASSWORD 'lab02_localdev';
+GRANT CONNECT ON DATABASE lab02_sqli TO lab02_user;
+```
+
+Run `008_lab02_pgsql.sql` while connected to `lab02_sqli` as the database owner/admin, and repeat with the Lab 04 database and migration. PostgreSQL roles are cluster-wide, so create each role only once.
+
+
+### Lab 03 from the storefront search
+
+Open Lab 03 directly at `target/shop/index.php?page=products&lab=3`. Ordinary storefront searches omit `lab` and continue to use the parameterized product query.

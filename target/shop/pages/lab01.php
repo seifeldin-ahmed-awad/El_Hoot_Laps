@@ -35,7 +35,7 @@
 <section class="lab01-description">
   <h2>Description</h2>
   <p>The application uses a <code>TrackingId</code> cookie to identify visitors. The cookie value is included in a database query. The application exposes detailed database error messages in its responses.</p>
-  <p>Your objective is to exploit this behavior to discover the administrator's credentials and successfully authenticate as the administrator.</p>
+  <p>Your objective is to exploit this behavior to discover the sales_manager's credentials and successfully authenticate as the sales_manager.</p>
 </section>
 
 <section class="lab01-instructions">

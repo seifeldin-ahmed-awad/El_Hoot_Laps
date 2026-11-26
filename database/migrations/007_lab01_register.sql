@@ -7,7 +7,7 @@
 --   • expected_flag_hash  updated to the MD5 of f{EL-HOOT71026}
 --   • expected_flag_hash_algorithm set to 'md5'
 --   • is_enabled set to 1
---   • description updated to reflect the administrator account
+--   • description updated to reflect the sales_manager account
 --
 -- The plaintext flag f{EL-HOOT71026} is stored only in the PostgreSQL
 -- lab01_sqli.lab01_flag table and is never written to this MySQL database.
@@ -22,7 +22,7 @@ UPDATE labs
 SET
     title                        = 'Visible Error-Based SQL Injection',
     category                     = 'SQL Injection',
-    description                  = 'Exploit verbose database errors in a PostgreSQL-backed shop to extract the administrator credentials.',
+    description                  = 'Exploit verbose database errors in a PostgreSQL-backed shop to extract the sales_manager credentials.',
     difficulty                   = 'Easy',
     points                       = 100,
     is_enabled                   = 1,
