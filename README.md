@@ -42,3 +42,8 @@ The Kanso Goods storefront is a separate, local target application. It has a dat
 Lab 01 is an intentionally vulnerable PostgreSQL-backed target. Follow the setup instructions in `target/shop/modules/labs/lab01/db.php`, apply `database/migrations/005_lab01_pgsql.sql` to the separate `lab01_sqli` database, then apply MySQL migrations `006_lab_enabled_and_hash_algo.sql` and `007_lab01_register.sql` to `breachlab`. Keep the target isolated and use it only for authorized training. Opening a configured challenge records that an authenticated operator has started it.
 
 The Scoreboard has one shared flag field. The submitted flag is matched to its unique configured hash to identify the lab; duplicate hash values are prevented by a unique database index. On an existing installation created before the central submission form, import `database/migrations/002_central_flag_submission.sql` once, followed by `database/migrations/003_operator_lab_progress.sql`.
+
+
+## CSRF Lab 08
+
+Apply `database/migrations/014_register_csrf_lab08.sql` and `015_shop_customer_accounts.sql` after the base schema and shop catalog migration. Register/sign in using the shop customer account pages (separate from operator accounts). The normal account email change uses POST with a CSRF token; the intentionally vulnerable GET route is demonstrated by the separate local attacker page in `attacker-csrf/index.html`. Serve that page from `http://localhost:8081` with `php -S localhost:8081` from the `attacker-csrf` directory, using the same browser profile as the signed-in shop.

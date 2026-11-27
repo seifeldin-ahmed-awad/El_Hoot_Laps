@@ -438,3 +438,19 @@ h1, h2, h3 { font-weight: 400; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
 }
+
+
+.account-page { max-width: 620px; margin: 0 auto; }
+.account-auth-form { max-width: 520px; margin-top: 30px; }
+.account-email-form, .account-logout-form { display: grid; }
+.account-email-form { gap: 20px; }
+.account-field { display: grid; gap: 8px; }
+.account-field label { color: var(--espresso); font-size: 11px; letter-spacing: .015em; }
+.account-field label span { color: var(--muted); }
+.account-field input { width: 100%; min-height: 48px; padding: 10px 12px; border: 1px solid var(--border); background: var(--alabaster); color: var(--ink); }
+.account-submit { width: max-content; margin-top: 3px; }
+.account-switch { margin-top: 25px; padding-top: 18px; border-top: 1px solid var(--soft-border); color: var(--muted); font-size: 12px; }
+.account-logout-form { width: max-content; }
+.account-logout-form button, .account-email-panel button { min-height: 42px; padding: 8px 14px; border: 1px solid var(--espresso); background: var(--espresso); color: var(--alabaster); cursor: pointer; font-size: 12px; }
+.account-email-panel { max-width: 620px; margin: 28px 0; padding: 22px; border: 1px solid var(--border); background: #f7f4ef; }
+.account-email-panel .account-email-form { margin-top: 16px; }

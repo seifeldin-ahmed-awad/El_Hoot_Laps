@@ -48,16 +48,72 @@ if ($lab01TrackingError !== null) {
 }
 
 $pdo = database();
+// Lab 08: intentionally vulnerable GET email-change route; normal POST is CSRF-protected.
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'change-email') {
+    $requestedEmail = filter_var($_GET['email'] ?? '', FILTER_VALIDATE_EMAIL);
+    if ($requestedEmail !== false && strlen($requestedEmail) <= 190) {
+        $_SESSION['csrf_lab08_email'] = $requestedEmail;
+        $_SESSION['csrf_lab08_solved_at'] = time();
+    }
+    header('Location: ' . shop_url('account'));
+    exit;
+}
+if (isset($_SESSION['csrf_lab08_solved_at']) && time() - (int) $_SESSION['csrf_lab08_solved_at'] >= 30) {
+    $_SESSION['csrf_lab08_email'] = 'customer@kansogoods.test';
+    unset($_SESSION['csrf_lab08_solved_at']);
+}
+
 $page = $_GET['page'] ?? 'home';
-$allowedPages = ['home', 'products', 'category', 'product', 'cart', 'checkout', 'account', 'order', 'labs', 'info', 'lab01'];
+$allowedPages = ['home', 'products', 'category', 'product', 'cart', 'checkout', 'account', 'login', 'register', 'order', 'labs', 'info', 'lab01'];
 if (!is_string($page) || !in_array($page, $allowedPages, true)) {
     http_response_code(404);
     $page = 'home';
+}
+if ($page === 'account' && empty($_SESSION['shop_customer_id'])) {
+    $_SESSION['shop_after_login'] = shop_url('account');
+    header('Location: ' . shop_url('login'));
+    exit;
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_valid_csrf();
     $action = $_POST['action'] ?? '';
+
+    if ($action === 'customer-register' || $action === 'customer-login') {
+        $email = strtolower(trim((string) ($_POST['email'] ?? '')));
+        $password = (string) ($_POST['password'] ?? '');
+        $destinationPage = $action === 'customer-register' ? 'register' : 'login';
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 190 || $password === '') {
+            shop_flash('error', 'Enter a valid email and password.');
+            header('Location: ' . shop_url($destinationPage)); exit;
+        }
+        if ($action === 'customer-register') {
+            if (strlen($password) < 8) { shop_flash('error', 'Use a password with at least 8 characters.'); header('Location: ' . shop_url('register')); exit; }
+            try {
+                $statement = $pdo->prepare('INSERT INTO shop_customers (email, password_hash) VALUES (:email, :password_hash)');
+                $statement->execute(['email'=>$email, 'password_hash'=>password_hash($password, PASSWORD_DEFAULT)]);
+                $customerId = (int)$pdo->lastInsertId();
+            } catch (PDOException $e) { shop_flash('error', 'An account with that email may already exist.'); header('Location: ' . shop_url('register')); exit; }
+        } else {
+            $statement = $pdo->prepare('SELECT id, password_hash FROM shop_customers WHERE email = :email LIMIT 1');
+            $statement->execute(['email'=>$email]); $customer = $statement->fetch();
+            if (!$customer || !password_verify($password, (string)$customer['password_hash'])) { shop_flash('error', 'Email or password is incorrect.'); header('Location: ' . shop_url('login')); exit; }
+            $customerId = (int)$customer['id'];
+        }
+        session_regenerate_id(true); $_SESSION['shop_customer_id']=$customerId; $_SESSION['shop_customer_email']=$email;
+        $destination = $_SESSION['shop_after_login'] ?? shop_url('account'); unset($_SESSION['shop_after_login']);
+        header('Location: ' . $destination); exit;
+    }
+    if ($action === 'customer-logout') {
+        unset($_SESSION['shop_customer_id'], $_SESSION['shop_customer_email'], $_SESSION['shop_after_login']);
+        session_regenerate_id(true); header('Location: ' . shop_url()); exit;
+    }
+    if ($action === 'change-email') {
+        $requestedEmail = filter_var($_POST['email'] ?? '', FILTER_VALIDATE_EMAIL);
+        if ($requestedEmail === false || strlen($requestedEmail) > 190) shop_flash('error', 'Enter a valid email address.');
+        else { $_SESSION['csrf_lab08_email']=$requestedEmail; unset($_SESSION['csrf_lab08_solved_at']); shop_flash('success', 'Your account email has been updated.'); }
+        header('Location: ' . shop_url('account')); exit;
+    }
 
     if ($action === 'submit-review') {
         $reviewProductId = filter_var($_POST['product_id'] ?? null, FILTER_VALIDATE_INT);
@@ -329,7 +385,8 @@ $title = match ($page) {
   <meta name="theme-color" content="#FAF8F5">
   <title><?= $page === 'home' ? 'Kanso Goods' : shop_e($title . ' — Kanso Goods') ?></title>
   <link rel="stylesheet" href="assets/css/shop.css">
-  <script src="assets/js/lab05.js"></script>\n  <script src="assets/js/lab07.js" defer></script>
+  <script src="assets/js/lab05.js"></script>
+  <script src="assets/js/lab07.js" defer></script>
   <script src="assets/js/shop.js" defer></script>
 </head>
 <body class="shop-body">

