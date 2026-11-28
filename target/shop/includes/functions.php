@@ -35,7 +35,7 @@ function shop_categories(PDO $pdo): array
     )->fetchAll();
 }
 
-function shop_products(PDO $pdo, string $search = '', ?string $category = null, string $sort = 'featured', bool $unionLab = false): array
+function shop_products(PDO $pdo, string $search = '', ?string $category = null, string $sort = 'featured', bool $unionLab = false, ?string $rawSearch = null): array
 {
     $orderBy = [
         'featured' => 'p.is_featured DESC, p.id ASC',
@@ -47,18 +47,39 @@ function shop_products(PDO $pdo, string $search = '', ?string $category = null, 
     // Lab 03 deliberately makes the MAIN storefront search query vulnerable.
     // This branch runs against the same MySQL shop database and returns the
     // same product-shaped columns so UNION rows render in the normal product grid.
-    if ($unionLab) {
+    // A lone apostrophe is ordinary search text, not a lab payload.
+    // Keep this one-character input on the normal parameterized path; crafted
+    // multi-character input still reaches the intentionally vulnerable query.
+    if ($unionLab && $search !== "'") {
         if ($search === '') {
             return [];
+        }
+        $injectionSearch = $search;
+        $likeSuffix = '%';
+        // Preserve the whitespace that makes MySQL's -- comment valid. When
+        // the input ends in a line comment, do not append the LIKE suffix after
+        // it: keep the query tail from becoming part of the injected SQL text.
+        if ($rawSearch !== null && preg_match('/--[ \t]+\z/', $rawSearch) === 1) {
+            $injectionSearch .= substr($rawSearch, strlen(rtrim($rawSearch)));
+            $likeSuffix = '';
         }
         $sql = "SELECT p.id, p.slug, p.name, p.product_code, p.description, p.price,
                        p.stock, p.image_class, p.is_featured, c.name AS category_name,
                        c.slug AS category_slug
                 FROM shop_products AS p
                 JOIN shop_categories AS c ON c.id = p.category_id
-                WHERE p.name LIKE '%" . $search . "%'";
-        $statement = $pdo->query($sql);
-        return $statement->fetchAll();
+                WHERE p.name LIKE '%" . $injectionSearch . $likeSuffix . "'";
+        // Keep malformed search input from breaking the storefront response.
+        // The intentionally injectable query remains available for the lab payload.
+        try {
+            $statement = $pdo->query($sql);
+            return $statement->fetchAll();
+        } catch (PDOException $exception) {
+            // Lab 03: surface database errors in the normal shop search so learners
+            // can use ORDER BY to discover the UNION column count.
+            $GLOBALS['lab03_search_error'] = $exception->getMessage();
+            return [];
+        }
     }
 
     $where = ['1 = 1'];

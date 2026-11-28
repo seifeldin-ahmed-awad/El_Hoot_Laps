@@ -7,3 +7,8 @@
 *.dump
 *.log
 *.sql.gz
+.phpunit.result.cache
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

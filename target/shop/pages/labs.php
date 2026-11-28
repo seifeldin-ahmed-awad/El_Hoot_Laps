@@ -14,21 +14,25 @@
     <?php foreach ($labs as $lab): ?>
       <?php
       $labId   = (int) $lab['id'];
-      if ($labId === 3) {
-          continue;
-      }
       $padded  = str_pad((string) $labId, 2, '0', STR_PAD_LEFT);
       $enabled = $lab['enabled'];
+      $description = $labId === 2
+          ? 'Use the TrackingId cookie on the normal storefront. A true condition displays "Welcome back"; a false condition does not. Use that signal to infer the production_manager password, then submit it as the flag in the BreachLab scoreboard.'
+          : (string) $lab['description'];
+      $shopPage = match ($labId) {
+          1 => 'lab01',
+          8 => 'account',
+          default => 'products',
+      };
       ?>
       <article class="<?= $enabled ? 'lab-enabled' : '' ?>">
         <span>LAB_<?= shop_e($padded) ?></span>
         <h3><?= shop_e($lab['title']) ?></h3>
-        <p><?= shop_e($lab['description']) ?></p>
+        <p><?= shop_e($description) ?></p>
         <small><?= shop_e($lab['difficulty']) ?> · <?= shop_e($lab['points']) ?> PTS<?= $enabled ? ' · <span class="lab-status-on">ACTIVE</span>' : ' · NOT CONFIGURED' ?></small>
         <?php if ($enabled): ?>
           <div class="lab-actions">
-            <a class="text-link" href="<?= shop_e(shop_url('lab0' . $labId)) ?>">Challenge info <span aria-hidden="true">→</span></a>
-            <a class="text-link" href="modules/labs/lab0<?= $labId ?>/login.php" target="_blank" rel="noopener">Open target <span aria-hidden="true">↗</span></a>
+            <a class="text-link" href="<?= shop_e(shop_url($shopPage)) ?>">Open in shop <span aria-hidden="true">→</span></a>
           </div>
         <?php endif; ?>
       </article>

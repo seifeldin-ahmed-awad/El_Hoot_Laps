@@ -18,12 +18,42 @@
           <input type="hidden" name="slug" value="<?= shop_e($product['slug']) ?>">
           <label for="stock-store">Choose a country/store</label>
           <select id="stock-store" name="storeId">
-            <option value="UK">United Kingdom</option>
-            <option value="US">United States</option>
-            <option value="France">France</option>
+            <option value="UK"<?= ($_GET['storeId'] ?? 'UK') === 'UK' ? ' selected' : '' ?>>United Kingdom</option>
+            <option value="US"<?= ($_GET['storeId'] ?? 'UK') === 'US' ? ' selected' : '' ?>>United States</option>
+            <option value="France"<?= ($_GET['storeId'] ?? 'UK') === 'France' ? ' selected' : '' ?>>France</option>
           </select>
           <button class="shop-button" type="submit" name="checkStock" value="1" id="check-stock-button">Check stock</button>
+          <input type="hidden" name="stockApi" value="<?= shop_e(config_lab09_stock_api()) ?>">
+          <script>
+            document.getElementById("check-stock-form").addEventListener("submit", async function (event) {
+              event.preventDefault();
+              const form = event.currentTarget;
+              const params = new URLSearchParams();
+              for (const [key, value] of new FormData(form).entries()) {
+                if (key !== "stockApi") params.append(key, value);
+              }
+              params.set("checkStock", "1");
+              window.history.pushState({}, "", "index.php?" + params.toString());
+
+              const body = new URLSearchParams();
+              body.append("csrf_token", <?= json_encode(csrf_token()) ?>);
+              body.append("stockApi", form.elements.stockApi.value);
+              const response = await fetch("index.php?" + params.toString(), {
+                method: "POST",
+                body
+              });
+              if (!response.ok) {
+                throw new Error(await response.text());
+              }
+              document.open();
+              document.write(await response.text());
+              document.close();
+            });
+          </script>
         </form>
+        <?php if (isset($_GET['checkStock']) && $ssrfResult !== null): ?>
+          <p class="shop-flash <?= str_contains($ssrfResult, 'rejected') ? 'is-error' : 'is-success' ?>" id="ssrf-stock-result" role="status"><?= shop_e($ssrfResult) ?></p>
+        <?php endif; ?>
         <?php if (($_GET['checkStock'] ?? '') === '1'): ?>
           <div id="stock-check-result" aria-live="polite">
             <script>

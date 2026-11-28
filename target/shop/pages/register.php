@@ -10,8 +10,8 @@
       <input id="customer-email" name="email" type="email" maxlength="190" autocomplete="email" required>
     </div>
     <div class="account-field">
-      <label for="customer-password">Password <span>(at least 8 characters)</span></label>
-      <input id="customer-password" name="password" type="password" minlength="8" autocomplete="new-password" required>
+      <label for="customer-password">Password <span>(at least 6 characters)</span></label>
+      <input id="customer-password" name="password" type="password" minlength="6" autocomplete="new-password" required>
     </div>
     <button class="shop-button account-submit" type="submit">Create account <span aria-hidden="true">→</span></button>
   </form>

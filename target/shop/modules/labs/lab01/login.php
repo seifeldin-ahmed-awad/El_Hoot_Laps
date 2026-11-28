@@ -70,7 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $flagStmt = $labPdo->prepare('SELECT flag_value FROM lab01_flag LIMIT 1');
             $flagStmt->execute();
             $flagRow  = $flagStmt->fetch();
-            $flagValue = $flagRow !== false ? (string) $flagRow['flag_value'] : null;
+            $flagValue = $flagRow !== false ? md5((string) $flagRow['flag_value']) : null;
         }
     }
 }
@@ -114,11 +114,11 @@ $search       = '';
 
       <?php if ($loginSuccess && $flagValue !== null): ?>
         <div class="lab01-complete">
-          <p class="eyebrow" style="color:var(--success);">✓ CHALLENGE SOLVED</p>
+          <p class="eyebrow lab01-solved-eyebrow">✓ CHALLENGE SOLVED</p>
           <p>You have successfully authenticated as <strong>sales_manager</strong>.</p>
-          <p>Copy the flag below and submit it through the <a href="/BreachLab/scoreboard.php" class="text-link">BreachLab Scoreboard</a> to earn your points.</p>
+          <p>Copy the MD5 hash below and use it for your <a href="/BreachLab/scoreboard.php" class="text-link">BreachLab Scoreboard</a> own hash analysis.</p>
           <div class="lab01-flag-box">
-            <span class="lab01-flag-label">YOUR FLAG</span>
+            <span class="lab01-flag-label">FLAG MD5 HASH</span>
             <code class="lab01-flag-value"><?= htmlspecialchars($flagValue, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></code>
           </div>
           <p class="lab01-flag-note">This flag is unique to this challenge instance.</p>
@@ -139,90 +139,13 @@ $search       = '';
             <input id="lab01-password" name="password" type="password"
                    autocomplete="current-password" required maxlength="64">
           </div>
-          <button class="shop-button" type="submit" style="width:100%;justify-content:center;">Log in</button>
+          <button class="shop-button lab01-login-submit" type="submit">Log in</button>
         </form>
       <?php endif; ?>
     </section>
   </main>
 
   <?php require LAB01_SHOP_ROOT . '/includes/footer.php'; ?>
-
-<style>
-.lab01-login-page { max-width: 520px; }
-.lab01-login-page h1 {
-  margin: 0;
-  color: var(--espresso);
-  font-family: Yrsa, Georgia, "Times New Roman", serif;
-  font-size: clamp(38px, 5vw, 52px);
-  font-weight: 400;
-  letter-spacing: -.04em;
-  line-height: 1.05;
-}
-.lab01-sql-error {
-  margin: 18px clamp(22px, 6vw, 88px) 0;
-  padding: 14px 18px;
-  border: 1px solid #c97a6a;
-  background: #fff8f7;
-  font-family: "Red Hat Mono", Consolas, monospace;
-}
-.lab01-sql-error-label {
-  margin: 0 0 6px;
-  color: var(--error);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: .08em;
-}
-.lab01-sql-error-msg {
-  margin: 0;
-  color: var(--error);
-  font-size: 12px;
-  line-height: 1.55;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-.lab01-login-form { display: grid; gap: 16px; margin-top: 28px; }
-.lab01-field { display: grid; gap: 5px; }
-.lab01-field label { color: var(--muted); font-size: 11px; }
-.lab01-field input {
-  width: 100%;
-  min-height: 46px;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--ink);
-  font-size: 14px;
-}
-.lab01-complete {
-  margin-top: 28px;
-  padding: 22px;
-  border: 1px solid #b8c8bc;
-  background: #f5faf7;
-}
-.lab01-complete p { color: var(--muted); font-size: 13px; }
-.lab01-flag-box {
-  margin: 16px 0;
-  padding: 14px 16px;
-  border: 1px solid var(--border);
-  background: var(--paper);
-}
-.lab01-flag-label {
-  display: block;
-  margin-bottom: 8px;
-  color: var(--terracotta);
-  font-family: "Red Hat Mono", Consolas, monospace;
-  font-size: 9px;
-  letter-spacing: .1em;
-}
-.lab01-flag-value {
-  display: block;
-  color: var(--espresso);
-  font-family: "Red Hat Mono", Consolas, monospace;
-  font-size: 14px;
-  font-weight: 600;
-  word-break: break-all;
-}
-.lab01-flag-note { margin: 10px 0 0; color: #766d64; font-size: 11px; }
-</style>
 
 </body>
 </html>

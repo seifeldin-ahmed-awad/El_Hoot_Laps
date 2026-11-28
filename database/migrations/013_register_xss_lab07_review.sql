@@ -21,7 +21,6 @@ SET category = 'Cross-Site Scripting',
     difficulty = 'Hard',
     points = 200,
     is_enabled = 1,
-    challenge_route = '/BreachLab/target/shop/index.php?page=products',
     expected_flag_hash = 'fd7b26b5a6216d453159265a2cd57ea2d1a38a98a7c9e695fff4a80c384cb4c6',
     expected_flag_hash_algorithm = 'sha256'
 WHERE id = 7;

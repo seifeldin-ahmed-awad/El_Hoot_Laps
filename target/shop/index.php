@@ -4,8 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../../app/bootstrap.php';
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/modules/labs/registry.php';
-// Keep every challenge on the storefront endpoint. Lab 03 is selected explicitly
-// by its link and uses the search bar; TrackingId auto-detection is only for Labs 02/04.
+// Challenges run through the normal storefront routes; TrackingId selects Labs 01, 02, and 04.
 $trackingProbe = (string) ($_COOKIE['TrackingId'] ?? '');
 $autoDetectedLab = 1;
 // Lab 01's error-based payloads also contain AND/OR. Detect its distinctive
@@ -17,24 +16,20 @@ if (preg_match('/\bCAST\s*\(\s*\(\s*SELECT\b[\s\S]*?\bFROM\s+users\b/i', $tracki
 } elseif (preg_match('/\b(?:AND|OR)\b/i', $trackingProbe) === 1) {
     $autoDetectedLab = 2; // conditional-response blind SQLi
 }
-$requestedLab = filter_var($_GET['lab'] ?? null, FILTER_VALIDATE_INT);
-$activeLab = is_int($requestedLab) && in_array($requestedLab, [1, 2, 3, 4], true)
-    ? $requestedLab
-    : $autoDetectedLab;
-if (!isset($_COOKIE['TrackingId']) && $activeLab !== 3) {
-    $seedCookie = $activeLab === 1 ? 'ogAZZfxtOKUELbuJ' : ($activeLab === 4 ? 'x' : 'xyz');
+$activeLab = $autoDetectedLab;
+if (!isset($_COOKIE['TrackingId'])) {
+    // Give each browser session an ordinary, unpredictable TrackingId.
+    // Lab 02 uses this value as the base of its intentionally vulnerable SQL query.
+    $seedCookie = bin2hex(random_bytes(16));
     setcookie('TrackingId', $seedCookie, [
         'expires' => 0, 'path' => '/', 'httponly' => false, 'samesite' => 'Lax',
     ]);
     $_COOKIE['TrackingId'] = $seedCookie;
 }
 $labResult = null;
-if ($activeLab >= 2 && $activeLab !== 3) {
+if ($activeLab >= 2) {
     require_once __DIR__ . '/modules/labs/shared.php';
     $labResult = lab_shop_process($activeLab);
-}
-if ($activeLab === 3) {
-    $labResult = ['lab_id' => 3, 'message' => '', 'error' => '', 'duration' => 0.0, 'rows' => []];
 }
 require_once __DIR__ . '/modules/labs/lab01/tracking.php';
 $lab01TrackingError = $activeLab === 1 ? lab01_process_tracking_cookie() : null;
@@ -43,11 +38,49 @@ $lab01TrackingError = $activeLab === 1 ? lab01_process_tracking_cookie() : null;
 if ($lab01TrackingError !== null) {
     http_response_code(404);
     header('Content-Type: text/plain; charset=UTF-8');
-    echo "Not Found\n\n" . $lab01TrackingError;
+    $displayTrackingError = preg_replace_callback(
+        '/\b(?:f|flag)\{[^{}\r\n]+\}/i',
+        static fn (array $match): string => md5($match[0]),
+        $lab01TrackingError
+    );
+    if (!is_string($displayTrackingError)) {
+        throw new RuntimeException('Unable to render the Lab 01 error response.');
+    }
+    echo "Not Found\n\n" . $displayTrackingError;
     exit;
 }
 
 $pdo = database();
+// Lab 09 SSRF training target: emulate a loopback-only service inside this app.
+// No outbound or host-network requests are made by this exercise.
+$ssrfResult = null;
+if (($_GET['checkStock'] ?? '') === '1' && isset($_POST['stockApi']) && is_string($_POST['stockApi'])) {
+    require_valid_csrf();
+    $stockApi = $_POST['stockApi'];
+    // Blacklist-style filter intentionally blocks familiar spellings but can be bypassed.
+    if (stripos($stockApi, '127.0.0.1') !== false || stripos($stockApi, '/admin') !== false) {
+        $ssrfResult = 'Stock service rejected this URL.';
+    } else {
+        $parts = parse_url($stockApi);
+        $host = strtolower((string) ($parts['host'] ?? ''));
+        $path = (string) ($parts['path'] ?? '/');
+        // PHP decodes query encoding once; this simulated service decodes the path once more.
+        $path = rawurldecode($path);
+        $isLoopbackAlias = in_array($host, ['127.1', '127.0.0.1', 'localhost'], true);
+        if (!$isLoopbackAlias || !in_array((string) ($parts['scheme'] ?? ''), ['http', 'https'], true)) {
+            $ssrfResult = 'Stock service could not reach that location.';
+        } elseif (preg_match('~^/admin(?:/.*)?$~i', $path) === 1) {
+            if (str_contains(strtolower($path), 'delete')) {
+                $_SESSION['ssrf_lab09_target_deleted'] = true;
+                $ssrfResult = 'Target user deleted. Flag MD5: 2ded92cea17515290af538b12933b370';
+            } else {
+                $ssrfResult = 'Internal admin interface — target user: target. Request the delete-user endpoint to remove the target.';
+            }
+        } else {
+            $ssrfResult = 'Stock service reached: ' . shop_e($host . $path);
+        }
+    }
+}
 // Lab 08: intentionally vulnerable GET email-change route; normal POST is CSRF-protected.
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'change-email') {
     $requestedEmail = filter_var($_GET['email'] ?? '', FILTER_VALIDATE_EMAIL);
@@ -69,13 +102,25 @@ if (!is_string($page) || !in_array($page, $allowedPages, true)) {
     http_response_code(404);
     $page = 'home';
 }
+if ($page === 'account' && isset($_SESSION['shop_customer_id'])) {
+    $customerId = filter_var($_SESSION['shop_customer_id'], FILTER_VALIDATE_INT);
+    $customerExists = false;
+    if ($customerId !== false && $customerId !== null && $customerId > 0) {
+        $customerCheck = $pdo->prepare('SELECT id FROM shop_customers WHERE id = :id LIMIT 1');
+        $customerCheck->execute(['id' => $customerId]);
+        $customerExists = $customerCheck->fetchColumn() !== false;
+    }
+    if (!$customerExists) {
+        unset($_SESSION['shop_customer_id'], $_SESSION['shop_customer_email'], $_SESSION['shop_after_login']);
+    }
+}
 if ($page === 'account' && empty($_SESSION['shop_customer_id'])) {
     $_SESSION['shop_after_login'] = shop_url('account');
     header('Location: ' . shop_url('login'));
     exit;
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !(($_GET['checkStock'] ?? '') === '1' && isset($_POST['stockApi']))) {
     require_valid_csrf();
     $action = $_POST['action'] ?? '';
 
@@ -88,7 +133,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: ' . shop_url($destinationPage)); exit;
         }
         if ($action === 'customer-register') {
-            if (strlen($password) < 8) { shop_flash('error', 'Use a password with at least 8 characters.'); header('Location: ' . shop_url('register')); exit; }
+            if (strlen($password) < 6) { shop_flash('error', 'Use a password with at least 6 characters.'); header('Location: ' . shop_url('register')); exit; }
             try {
                 $statement = $pdo->prepare('INSERT INTO shop_customers (email, password_hash) VALUES (:email, :password_hash)');
                 $statement->execute(['email'=>$email, 'password_hash'=>password_hash($password, PASSWORD_DEFAULT)]);
@@ -305,8 +350,10 @@ $categories = shop_categories($pdo);
 $cartItems = shop_cart_items($pdo);
 $cartSubtotal = shop_cart_subtotal($cartItems);
 $flash = shop_take_flash();
-$search = $_GET['q'] ?? '';
-$search = is_string($search) ? trim(substr($search, 0, 1000)) : '';
+$GLOBALS['lab03_search_error'] = null;
+$rawSearch = $_GET['q'] ?? '';
+$rawSearch = is_string($rawSearch) ? substr($rawSearch, 0, 1000) : '';
+$search = trim($rawSearch);
 $sort = $_GET['sort'] ?? 'featured';
 $sort = is_string($sort) ? $sort : 'featured';
 $categorySlug = $_GET['category'] ?? '';
@@ -314,11 +361,24 @@ $categorySlug = is_string($categorySlug) ? $categorySlug : '';
 $productSlug = $_GET['slug'] ?? '';
 $productSlug = is_string($productSlug) ? $productSlug : '';
 $product = $productSlug === '' ? null : shop_product($pdo, $productSlug);
+$productReviews = [];
+if ($product !== null) {
+    $reviewStatement = $pdo->prepare(
+        'SELECT reviewer_name, review_body, website, created_at
+         FROM shop_product_reviews
+         WHERE product_id = :product_id
+         ORDER BY id DESC'
+    );
+    $reviewStatement->execute(['product_id' => (int) $product['id']]);
+    $productReviews = $reviewStatement->fetchAll();
+}
 $products = shop_products(
     $pdo,
     $search,
     in_array($page, ['category', 'products'], true) && $categorySlug !== '' ? $categorySlug : null,
-    $sort
+    $sort,
+    $search !== '',
+    $rawSearch
 );
 $selectedCategory = null;
 foreach ($categories as $category) {

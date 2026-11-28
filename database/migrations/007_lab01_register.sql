@@ -26,7 +26,6 @@ SET
     difficulty                   = 'Easy',
     points                       = 100,
     is_enabled                   = 1,
-    challenge_route              = '/BreachLab/target/shop/modules/labs/lab01/login.php',
     expected_flag_hash           = '0de5ebb9999f9d50278265257898fb6b',
     expected_flag_hash_algorithm = 'md5'
 WHERE id = 1;

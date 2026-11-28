@@ -14,7 +14,6 @@
   <div class="shop-utilities">
     <form class="search-form" method="get" action="index.php" role="search">
       <input type="hidden" name="page" value="products">
-      <?php if (($activeLab ?? null) === 3): ?><input type="hidden" name="lab" value="3"><?php endif; ?>
       <label class="sr-only" for="shop-search">Search products</label>
       <input id="shop-search" name="q" type="search" value="<?= shop_e($search) ?>" placeholder="Search">
       <button type="submit" aria-label="Submit search">⌕</button>

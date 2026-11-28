@@ -81,12 +81,6 @@ input {
   color: var(--green);
 }
 
-.nav-link-unavailable {
-  color: var(--muted);
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-
 .nav-link.is-current {
   font-weight: 700;
   text-decoration: underline;

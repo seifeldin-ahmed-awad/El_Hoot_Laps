@@ -20,7 +20,6 @@ CREATE TABLE IF NOT EXISTS labs (
     description VARCHAR(255) NOT NULL,
     difficulty ENUM('Easy', 'Medium', 'Hard') NOT NULL,
     points SMALLINT UNSIGNED NOT NULL,
-    challenge_route VARCHAR(512) NULL DEFAULT NULL,
     expected_flag_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NULL DEFAULT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -56,17 +55,6 @@ CREATE TABLE IF NOT EXISTS lab_completions (
     CONSTRAINT fk_completions_operator
         FOREIGN KEY (operator_id) REFERENCES operators (id) ON DELETE CASCADE,
     CONSTRAINT fk_completions_lab
-        FOREIGN KEY (lab_id) REFERENCES labs (id) ON DELETE CASCADE
-) ENGINE=InnoDB;
-
-CREATE TABLE IF NOT EXISTS operator_lab_progress (
-    operator_id BIGINT UNSIGNED NOT NULL,
-    lab_id TINYINT UNSIGNED NOT NULL,
-    started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (operator_id, lab_id),
-    CONSTRAINT fk_progress_operator
-        FOREIGN KEY (operator_id) REFERENCES operators (id) ON DELETE CASCADE,
-    CONSTRAINT fk_progress_lab
         FOREIGN KEY (lab_id) REFERENCES labs (id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 

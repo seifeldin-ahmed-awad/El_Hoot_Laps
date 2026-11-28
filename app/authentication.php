@@ -15,7 +15,15 @@ function current_operator(): ?array
         return null;
     }
 
-    return ['id' => (int) $id, 'username' => $username];
+    $statement = database()->prepare('SELECT username FROM operators WHERE id = :id LIMIT 1');
+    $statement->execute(['id' => (int) $id]);
+    $storedUsername = $statement->fetchColumn();
+    if (!is_string($storedUsername) || $storedUsername !== $username) {
+        unset($_SESSION['operator']);
+        return null;
+    }
+
+    return ['id' => (int) $id, 'username' => $storedUsername];
 }
 
 function require_operator(): array

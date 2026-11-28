@@ -14,18 +14,20 @@
       const flag = document.createElement('p');
       flag.className = 'shop-flash is-success';
       flag.setAttribute('role', 'status');
-      flag.textContent = 'Lab 06 flag: flag{FqtI2xKqln3v}';
+      flag.textContent = 'Lab 06 flag MD5: ' + '46f8e6a60e376a582d8649447f34e49d';
       document.querySelector('.listing-page')?.prepend(flag);
       window.setTimeout(() => { window.location.replace('index.php?page=products'); }, 30000);
     }
   </script>
+<?php endif; ?>
+<?php if (!empty($GLOBALS['lab03_search_error']) && $search !== ''): ?>
+  <p class="shop-flash is-error" role="alert">Database query error: <?= shop_e($GLOBALS['lab03_search_error']) ?></p>
 <?php endif; ?>
   <p class="eyebrow">THE KANSO COLLECTION</p>
   <div class="section-heading listing-heading">
     <div><h1>Shop all</h1><?php if ($search !== ''): ?><p class="listing-context">Results for “<?= shop_e($search) ?>”</p><?php endif; ?></div>
     <form class="sort-form" method="get" action="index.php">
       <input type="hidden" name="page" value="<?= shop_e($page) ?>">
-      <?php if ($activeLab === 3): ?><input type="hidden" name="lab" value="3"><?php endif; ?>
       <?php if ($categorySlug !== ''): ?><input type="hidden" name="category" value="<?= shop_e($categorySlug) ?>"><?php endif; ?>
       <?php if ($search !== ''): ?><input type="hidden" name="q" value="<?= shop_e($search) ?>"><?php endif; ?>
       <label for="sort-products">Sort</label>
@@ -38,9 +40,9 @@
     </form>
   </div>
   <nav class="filter-links listing-filters" aria-label="Filter products by category">
-    <a class="<?= $categorySlug === '' ? 'is-selected' : '' ?>" href="<?= shop_e(shop_url('products', ($activeLab === 3 ? ['lab' => 3] : []) + ($search === '' ? [] : ['q' => $search]))) ?>">All objects</a>
+    <a class="<?= $categorySlug === '' ? 'is-selected' : '' ?>" href="<?= shop_e(shop_url('products', ($search === '' ? [] : ['q' => $search]))) ?>">All objects</a>
     <?php foreach ($categories as $category): ?>
-      <a class="<?= $categorySlug === $category['slug'] ? 'is-selected' : '' ?>" href="<?= shop_e(shop_url('category', ['category' => $category['slug']] + ($activeLab === 3 ? ['lab' => 3] : []))) ?>"><?= shop_e($category['name']) ?></a>
+      <a class="<?= $categorySlug === $category['slug'] ? 'is-selected' : '' ?>" href="<?= shop_e(shop_url('category', ['category' => $category['slug']])) ?>"><?= shop_e($category['name']) ?></a>
     <?php endforeach; ?>
   </nav>
   <?php if ($products === []): ?>

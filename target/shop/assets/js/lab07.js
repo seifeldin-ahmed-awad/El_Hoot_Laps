@@ -18,7 +18,7 @@
       flag.className = 'shop-flash is-success';
       flag.setAttribute('role', 'status');
       flag.setAttribute('aria-live', 'polite');
-      flag.textContent = 'Lab 07 flag: Flag{ePeQnCgVgFFn}';
+      flag.textContent = 'Lab 07 flag MD5: d80de05cf0fef2d262eb1bf8e5114e1f';
       section.prepend(flag);
     }
 

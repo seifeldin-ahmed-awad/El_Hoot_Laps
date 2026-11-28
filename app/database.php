@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/config.php';
+
 function database(): PDO
 {
     static $connection;
@@ -9,13 +11,7 @@ function database(): PDO
         return $connection;
     }
 
-    $settings = [
-        'host' => getenv('BREACHLAB_DB_HOST'),
-        'port' => getenv('BREACHLAB_DB_PORT'),
-        'name' => getenv('BREACHLAB_DB_NAME'),
-        'username' => getenv('BREACHLAB_DB_USER'),
-        'password' => getenv('BREACHLAB_DB_PASSWORD'),
-    ];
+    $settings = config_database();
     $isLocalClient = PHP_SAPI === 'cli' || in_array(
         $_SERVER['REMOTE_ADDR'] ?? '',
         ['127.0.0.1', '::1'],

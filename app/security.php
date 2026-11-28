@@ -49,24 +49,3 @@ function take_flash(): ?array
 
     return $flash;
 }
-
-function safe_challenge_url(?string $route): ?string
-{
-    if ($route === null || $route === '' ||
-        preg_match('/[\x00-\x20\x7f\\\\]/', $route) === 1) {
-        return null;
-    }
-
-    if (str_starts_with($route, '/')) {
-        return str_starts_with($route, '//') ? null : $route;
-    }
-
-    $parts = parse_url($route);
-    if ($parts === false || !isset($parts['scheme'], $parts['host']) ||
-        $parts['host'] === '' || isset($parts['user']) || isset($parts['pass']) ||
-        !in_array(strtolower($parts['scheme']), ['http', 'https'], true)) {
-        return null;
-    }
-
-    return $route;
-}

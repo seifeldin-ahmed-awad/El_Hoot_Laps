@@ -18,8 +18,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!preg_match('/\A[a-zA-Z0-9_]{3,32}\z/', $username)) {
         $error = 'Usernames must be 3–32 characters using letters, numbers, or underscores.';
-    } elseif (!is_string($password) || strlen($password) < 12 || strlen($password) > 72) {
-        $error = 'Choose a password between 12 and 72 bytes.';
+    } elseif (!is_string($password) || strlen($password) < 6 || strlen($password) > 72) {
+        $error = 'Choose a password between 6 and 72 bytes.';
     } else {
         try {
             $statement = database()->prepare(
@@ -80,8 +80,8 @@ $flash = take_flash();
                 <label for="username">Username</label>
                 <input id="username" name="username" type="text" autocomplete="username" minlength="3" maxlength="32" pattern="[A-Za-z0-9_]{3,32}" required>
                 <label for="password">Password</label>
-                <input id="password" name="password" type="password" autocomplete="new-password" minlength="12" maxlength="72" required>
-                <p class="submit-hint">Use 12–72 characters. Passwords are stored as secure hashes.</p>
+                <input id="password" name="password" type="password" autocomplete="new-password" minlength="6" maxlength="72" required>
+                <p class="submit-hint">Use 6–72 characters. Passwords are stored as secure hashes.</p>
                 <button class="command-button" type="submit">[ CREATE_ACCOUNT ]</button>
             </form>
             <p class="auth-links">Already registered? <a href="login.php">[ LOGIN ]</a></p>

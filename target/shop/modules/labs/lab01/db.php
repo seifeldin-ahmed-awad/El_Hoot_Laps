@@ -58,10 +58,11 @@ function lab01_pdo(): PDO
         return $connection;
     }
 
-    $host     = getenv('LAB01_PG_HOST')     ?: '127.0.0.1';
-    $port     = getenv('LAB01_PG_PORT')     ?: '5432';
-    $database = getenv('LAB01_PG_DATABASE') ?: 'lab01_sqli';
-    $user     = getenv('LAB01_PG_USER')     ?: 'lab01_user';
+    $settings = config_lab_postgres(1);
+    $host     = $settings['host'];
+    $port     = $settings['port'];
+    $database = $settings['database'];
+    $user     = $settings['username'];
     $password = getenv('LAB01_PG_PASSWORD') !== false
         ? (string) getenv('LAB01_PG_PASSWORD')
         : 'lab01localdev';

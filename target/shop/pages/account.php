@@ -10,7 +10,7 @@
       <label for="account-email">New email address</label><input id="account-email" name="email" type="email" maxlength="190" required value="<?= shop_e((string) ($_SESSION['csrf_lab08_email'] ?? ($_SESSION['shop_customer_email'] ?? ''))) ?>"><button type="submit">Save email</button>
     </form>
   </section>
-  <?php if (isset($_SESSION['csrf_lab08_solved_at'])): ?><section class="shop-flash is-success" id="csrf-lab08-flag" role="status" aria-live="polite"><strong>CSRF Lab 08 solved!</strong><p>Flag: <code>Flag{gLLzaG6xrUP3}</code></p><p>This success message will reset in 30 seconds.</p></section><script>window.setTimeout(() => window.location.reload(), 30000);</script><?php endif; ?>
+  <?php if (isset($_SESSION['csrf_lab08_solved_at'])): ?><section class="shop-flash is-success" id="csrf-lab08-flag" role="status" aria-live="polite"><strong>CSRF Lab 08 solved!</strong><p>Flag MD5: <code>27b3f84ab8c5e8eff055c5dcfcebf36a</code></p><p>This success message will reset in 30 seconds.</p></section><script>window.setTimeout(() => window.location.reload(), 30000);</script><?php endif; ?>
   <h2 class="subheading">Recent orders</h2>
   <?php if ($orderHistory === []): ?>
     <p class="empty-state">No orders in this session yet. <a href="<?= shop_e(shop_url('products')) ?>">Explore the collection.</a></p>

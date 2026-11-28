@@ -10,9 +10,9 @@
     if (!flag) {
       flag = document.createElement('p');
       flag.id = 'lab05-flag';
+      flag.className = 'shop-flash is-success';
       flag.setAttribute('role', 'status');
-      flag.style.cssText = 'margin:1rem 0;padding:1rem;border:2px solid #2f6b45;background:#edf8ef;color:#174b2a;font-weight:bold';
-      flag.textContent = 'Lab 05 flag: Flag{nmuBi2UMWOk0}';
+      flag.textContent = 'Lab 05 flag MD5: c2da4a1c8260ff0c8c66db7e2b49524d';
       (document.querySelector('#stock-check-result') || document.querySelector('main') || document.body).appendChild(flag);
       window.setTimeout(function () { window.location.replace('index.php?page=products'); }, 30000);
     }

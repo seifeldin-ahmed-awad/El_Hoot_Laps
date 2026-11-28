@@ -42,7 +42,7 @@ $activePage = 'intro';
         <article class="info-box">
           <h2>[ GOAL ]</h2>
           <p>Explore each flaw, find the hidden flag, and submit it for points.</p>
-          <p>For Labs 1 and 2, recover the required value and submit it as the flag.</p>
+          <p>For Lab 2, infer production_manager's password from whether the normal shop displays Welcome back after a TrackingId request, then submit the recovered value as the flag.</p>
         </article>
         <article class="info-box">
           <h2 class="warning-text">[ RULE ]</h2>

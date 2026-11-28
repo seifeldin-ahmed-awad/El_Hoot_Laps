@@ -10,8 +10,7 @@ $flash = take_flash();
 $message = '';
 $messageType = '';
 
-// Detect whether migration 006 has been applied (adds expected_flag_hash_algorithm
-// and is_enabled).  Used in both the POST submission block and the challenge list.
+// Detect whether migration 006 has been applied (adds expected_flag_hash_algorithm).
 $_algoColCheck = $connection->query(
   "SELECT COUNT(*) FROM information_schema.COLUMNS
    WHERE TABLE_SCHEMA = DATABASE()
@@ -70,7 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       // Try sha256 match first, then md5.
       $labQuery = $connection->prepare(
-        "SELECT id, points, challenge_route, expected_flag_hash{$algoSelect}
+        "SELECT id, points, expected_flag_hash{$algoSelect}
          FROM labs
          WHERE expected_flag_hash IN (:hash_sha256, :hash_md5)
          FOR UPDATE"
@@ -114,77 +113,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $messageType = 'is-error';
       } else {
         $challenge  = $matchingLabs[0];
-        $storedHash = $challenge['expected_flag_hash'];
-        $algo       = strtolower((string) ($challenge['expected_flag_hash_algorithm'] ?? 'sha256'));
+        $completionQuery = $connection->prepare(
+          'SELECT id FROM lab_completions
+           WHERE operator_id = :operator_id AND lab_id = :lab_id'
+        );
+        $completionQuery->execute([
+          'operator_id' => $user['id'],
+          'lab_id' => $challenge['id'],
+        ]);
 
-        // Per-algorithm digest-length validation.
-        $expectedHashLength = match ($algo) {
-          'md5'   => 32,
-          default => 64,
-        };
-        $computedHash = match ($algo) {
-          'md5'   => $submittedHashMd5,
-          default => $submittedHashSha256,
-        };
+        $submission = $connection->prepare(
+          'INSERT INTO flag_submissions
+           (operator_id, lab_id, submitted_flag_hash, is_correct)
+           VALUES (:operator_id, :lab_id, :flag_hash, 1)'
+        );
+        $submission->execute([
+          'operator_id' => $user['id'],
+          'lab_id' => $challenge['id'],
+          'flag_hash' => $logHash,
+        ]);
 
-        $isConfigured = is_string($storedHash) &&
-          strlen($storedHash) === $expectedHashLength &&
-          preg_match('/\A[a-f0-9]+\z/i', $storedHash) === 1 &&
-          safe_challenge_url($challenge['challenge_route']) !== null &&
-          hash_equals(strtolower($storedHash), $computedHash);
-
-        if (!$isConfigured) {
-          $submission = $connection->prepare(
-            'INSERT INTO flag_submissions
-             (operator_id, lab_id, submitted_flag_hash, is_correct)
-             VALUES (:operator_id, :lab_id, :flag_hash, 0)'
+        if ($completionQuery->fetchColumn() !== false) {
+          $connection->commit();
+          $message = 'INFO: FLAG_ALREADY_SOLVED';
+        } else {
+          $completion = $connection->prepare(
+            'INSERT INTO lab_completions (operator_id, lab_id, points_awarded)
+             VALUES (:operator_id, :lab_id, :points)'
           );
-          $submission->execute([
+          $completion->execute([
             'operator_id' => $user['id'],
             'lab_id' => $challenge['id'],
-            'flag_hash' => $logHash,
+            'points' => $challenge['points'],
           ]);
           $connection->commit();
-          $message = 'ERROR: CHALLENGE_NOT_CONFIGURED';
-          $messageType = 'is-error';
-        } else {
-          $completionQuery = $connection->prepare(
-            'SELECT id FROM lab_completions
-             WHERE operator_id = :operator_id AND lab_id = :lab_id'
-          );
-          $completionQuery->execute([
-            'operator_id' => $user['id'],
-            'lab_id' => $challenge['id'],
-          ]);
-
-          $submission = $connection->prepare(
-            'INSERT INTO flag_submissions
-             (operator_id, lab_id, submitted_flag_hash, is_correct)
-             VALUES (:operator_id, :lab_id, :flag_hash, 1)'
-          );
-          $submission->execute([
-            'operator_id' => $user['id'],
-            'lab_id' => $challenge['id'],
-            'flag_hash' => $logHash,
-          ]);
-
-          if ($completionQuery->fetchColumn() !== false) {
-            $connection->commit();
-            $message = 'INFO: FLAG_ALREADY_SOLVED';
-          } else {
-            $completion = $connection->prepare(
-              'INSERT INTO lab_completions (operator_id, lab_id, points_awarded)
-               VALUES (:operator_id, :lab_id, :points)'
-            );
-            $completion->execute([
-              'operator_id' => $user['id'],
-              'lab_id' => $challenge['id'],
-              'points' => $challenge['points'],
-            ]);
-            $connection->commit();
-            $message = 'SUCCESS: FLAG_ACCEPTED (+' . (int) $challenge['points'] . ' PTS)';
-            $messageType = 'is-success';
-          }
+          $message = 'SUCCESS: FLAG_ACCEPTED (+' . (int) $challenge['points'] . ' PTS)';
+          $messageType = 'is-success';
         }
       }
     }
@@ -211,7 +175,7 @@ $_algoSelect2 = $algoColExists
 
 $challengeQuery = $connection->prepare(
   "SELECT l.id, l.title AS name, l.points,
-          l.challenge_route, l.expected_flag_hash,
+          l.expected_flag_hash,
           {$_algoSelect2}
           c.id AS completion_id
    FROM labs AS l
@@ -222,29 +186,6 @@ $challengeQuery = $connection->prepare(
 $challengeQuery->execute(['operator_id' => $user['id']]);
 $challengeRows = $challengeQuery->fetchAll();
 $totalChallenges = count($challengeRows);
-$configuredChallengeCount = 0;
-$missingRouteCount = 0;
-$missingFlagCount = 0;
-foreach ($challengeRows as &$challenge) {
-  $hasValidRoute = safe_challenge_url($challenge['challenge_route']) !== null;
-  $algo   = strtolower((string) ($challenge['expected_flag_hash_algorithm'] ?? 'sha256'));
-  $hashLen = match ($algo) { 'md5' => 32, default => 64 };
-  $hasValidFlagHash = is_string($challenge['expected_flag_hash']) &&
-    strlen($challenge['expected_flag_hash']) === $hashLen &&
-    preg_match('/\A[a-f0-9]+\z/i', $challenge['expected_flag_hash']) === 1;
-  $challenge['is_configured'] = $hasValidRoute && $hasValidFlagHash;
-
-  if (!$hasValidRoute) {
-    $missingRouteCount++;
-  }
-  if (!$hasValidFlagHash) {
-    $missingFlagCount++;
-  }
-  if ($challenge['is_configured']) {
-    $configuredChallengeCount++;
-  }
-}
-unset($challenge);
 
 $activePage = 'scoreboard';
 ?>
@@ -263,7 +204,7 @@ $activePage = 'scoreboard';
 
   <main class="page-shell scoreboard-page">
     <section class="terminal-panel scoreboard-heading" aria-labelledby="scoreboard-title">
-      <p class="prompt">root@breachlab:~# ./scoreboard --target=voltgear --live</p>
+      <p class="prompt">root@breachlab:~# ./scoreboard --flags</p>
       <h1 id="scoreboard-title" class="section-title">&gt; SCOREBOARD</h1>
       <div class="stats-grid">
         <div class="stat-box">
@@ -318,27 +259,19 @@ $activePage = 'scoreboard';
           <?php endif; ?>
           <form method="post" class="flag-form">
             <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
-            <input id="flag" name="flag" type="text" aria-label="Enter a challenge flag" placeholder="FLAG{...}" maxlength="512" autocomplete="off" spellcheck="false" required <?= $configuredChallengeCount === 0 ? 'disabled' : '' ?>>
-            <button class="command-button" type="submit" <?= $configuredChallengeCount === 0 ? 'disabled' : '' ?>>[ SUBMIT ]</button>
+            <input id="flag" name="flag" type="text" aria-label="Enter a challenge flag" placeholder="FLAG{...}" maxlength="512" autocomplete="off" spellcheck="false" required>
+            <button class="command-button" type="submit">[ SUBMIT ]</button>
           </form>
         </section>
 
         <section class="terminal-panel challenges-panel" id="challenges" aria-labelledby="challenges-title">
-          <h2 id="challenges-title" class="section-title">&gt; TARGET_CHALLENGES</h2>
+          <h2 id="challenges-title" class="section-title">&gt; CHALLENGE_PROGRESS</h2>
           <ul class="challenge-list">
             <?php foreach ($challengeRows as $challenge): ?>
-              <?php
-              $solved = $challenge['completion_id'] !== null;
-              $configured = $challenge['is_configured'];
-              ?>
+              <?php $solved = $challenge['completion_id'] !== null; ?>
               <li class="challenge-item<?= $solved ? ' is-solved' : '' ?>">
-                <span><span class="challenge-state" aria-label="<?= $solved ? 'Solved' : 'Unsolved' ?>"><?= $solved ? '[x]' : '[ ]' ?></span> LAB_<?= str_pad((string) $challenge['id'], 2, '0', STR_PAD_LEFT) ?> — <?= e($challenge['name']) ?></span>
+                <span><span class="challenge-state" aria-label="<?= $solved ? 'Solved' : 'Not yet solved' ?>"><?= $solved ? '[x]' : '[ ]' ?></span> LAB_<?= str_pad((string) $challenge['id'], 2, '0', STR_PAD_LEFT) ?> — <?= e($challenge['name']) ?></span>
                 <span class="challenge-points"><?= e($challenge['points']) ?> PTS</span>
-                <?php if ($configured): ?>
-                  <a class="nav-link challenge-target-link" href="open_challenge.php?lab_id=<?= (int) $challenge['id'] ?>" target="_blank" rel="noopener">[OPEN_TARGET]</a>
-                <?php else: ?>
-                  <span class="nav-link challenge-target-link nav-link-unavailable" aria-disabled="true">[NOT_CONFIGURED]</span>
-                <?php endif; ?>
               </li>
             <?php endforeach; ?>
           </ul>
